@@ -31,19 +31,20 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="ExtensionCord, Version=1.0.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\ExtensionCord.1.0.2\lib\net461\ExtensionCord.dll</HintPath>
+      <HintPath>packages\ExtensionCord.1.0.2\lib\net461\ExtensionCord.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="src\CollectionParsers.cs" />
+    <Compile Include="src\SequenceParsers.cs" />
     <Compile Include="src\ParseError.cs" />
     <Compile Include="src\Parser.cs" />
     <Compile Include="src\ParseResult.cs" />
     <Compile Include="src\IParserInput.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="src\StringParser.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
