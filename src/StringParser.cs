@@ -144,17 +144,24 @@
 				   select string.Empty;
 		}
 
-		public static Parser<string, char> Junk ()
+		public static Parser<string, char> SpacesOrTabs ()
 		{
-			return from _ in WhiteSpace ().OptionalRef ()
-				   select string.Empty;
+			return from s in OneOf (' ', '\t').ZeroOrMore ()
+				   select s.ToString ("", "", "");
 		}
 
-		public static Parser<T, char> SkipJunk<T> (this Parser<T, char> parser)
+		public static Parser<string, char> NewLine ()
 		{
-			return from _ in Junk ()
-				   from v in parser
-				   select v;
+			return from cr in Char ('\r').OptionalVal ()
+				   from lf in Char ('\n')
+				   select Environment.NewLine;
+		}
+
+		public static Parser<string, char> Line (bool keepLinefeed = false)
+		{
+			return from s in NoneOf ('\r', '\n').ZeroOrMore ()
+				   from nl in NewLine ()
+				   select s.ToString ("", "", "") + (keepLinefeed ? nl : "");
 		}
 
 		public static Parser<string, char> Identifier ()
@@ -167,7 +174,7 @@
 		public static Parser<T, char> Token<T> (this Parser<T, char> parser)
 		{
 			return from v in parser
-				   from _ in Junk ()
+				   from _ in WhiteSpace ()
 				   select v;
 		}
 	}

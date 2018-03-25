@@ -7,17 +7,19 @@
     {
         public abstract T Result { get; }
         public abstract bool ConsumedInput { get; }
-        public abstract object Position { get; }
         public abstract string Found { get; }
         public abstract Seq<string> Expected { get; protected set; }
 
-        private class Ok : ParseResult<T>
+		public object Position { get; private set; }
+
+		private class Ok : ParseResult<T>
         {
             private T _result;
             private bool _consumedInput;
 
-            public Ok (T result, bool consumedInput)
+            public Ok (object position, T result, bool consumedInput)
             {
+				Position = position;
                 _result = result;
                 _consumedInput = consumedInput;
             }
@@ -25,9 +27,6 @@
             public override T Result => _result;
 
             public override bool ConsumedInput => _consumedInput;
-
-            public override object Position => 
-                throw new InvalidOperationException ("Position not available");
 
             public override string Found => 
                 throw new InvalidOperationException ("Terminal not available");
@@ -41,13 +40,12 @@
 
         private class Fail : ParseResult<T>
         {
-            private object _position;
             private string _found;
             private Seq<string> _expected;
 
             public Fail (object position, string found, Seq<string> expected)
             {
-                _position = position;
+                Position = position;
                 _found = found;
                 _expected = expected;
             }
@@ -56,8 +54,6 @@
                 throw new InvalidOperationException ("Result not available");
 
             public override bool ConsumedInput => false;
-
-            public override object Position => _position;
 
             public override string Found => _found;
 
@@ -82,9 +78,9 @@
             return result is Ok;
         }
 
-        public static ParseResult<T> Succeeded (T result, bool consumedInput)
+        public static ParseResult<T> Succeeded (object position, T result, bool consumedInput)
         {
-            return new Ok (result, false);
+            return new Ok (position, result, false);
         }
 
         public static ParseResult<T> Failed (object position, string found)

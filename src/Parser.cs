@@ -36,7 +36,7 @@
         /// </summary>
         public static Parser<T, S> ToParser<T, S> (this T value)
         {
-            return input => ParseResult<T>.Succeeded (value, false);
+            return input => ParseResult<T>.Succeeded (input.Position, value, false);
         }
 
         public static Parser<T, S> Fail<T, S> (string found, string expected)
@@ -57,7 +57,7 @@
                     return ParseResult<T>.Failed (input.Position, "end of input");
                 var item = input.Current;
                 if (predicate (item))
-                    return ParseResult<T>.Succeeded (item, true);
+                    return ParseResult<T>.Succeeded (input.Position, item, true);
                 var res = ParseResult<T>.Failed (input.Position, item.ToString ());
                 input.Position = pos;
                 return res;
@@ -214,7 +214,7 @@
                     var found = res.Result.ToString ();
                     return ParseResult<T>.Failed (input.Position, found, Seq.Cons ("not " + found));
                 }
-                return ParseResult<T>.Succeeded (default (T), false);
+                return ParseResult<T>.Succeeded (input.Position, default (T), false);
             };
         }
 
