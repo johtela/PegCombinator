@@ -10,6 +10,11 @@
 	/// </summary>
 	public static class StringParser
 	{
+		public static Parser<char, char> AnyChar ()
+		{
+			return Parser.Satisfy<char> (_ => true);
+		}
+
 		/// <summary>
 		/// Parse a given character.
 		/// </summary>
@@ -58,6 +63,11 @@
 			return Parser.Satisfy<char> (char.IsLetterOrDigit).Expect ("alphanumeric character");
 		}
 
+		public static Parser<char, char> WhitespaceChar ()
+		{
+			return Parser.Satisfy<char> (char.IsWhiteSpace).Expect ("whitespace character");
+		}
+
 		/// <summary>
 		/// Parse a word (sequence of consecutive letters)
 		/// </summary>
@@ -73,7 +83,9 @@
 		/// </summary>
 		public static Parser<char, char> OneOf (params char[] chars)
 		{
-			return Parser.Satisfy<char> (c => chars.Contains (c));
+			Array.Sort (chars);
+			return Parser.Satisfy<char> (c => Array.BinarySearch (chars, c) >= 0)
+				.Expect ("one of: " + chars.ToString ("", "", ", "));
 		}
 
 		/// <summary>
@@ -81,27 +93,19 @@
 		/// </summary>
 		public static Parser<char, char> NoneOf (params char[] chars)
 		{
-			return Parser.Satisfy<char> (c => !chars.Contains (c));
+			Array.Sort (chars);
+			return Parser.Satisfy<char> (c => Array.BinarySearch (chars, c) < 0)
+				.Expect ("any char except: " + chars.ToString ("", "", ", "));
 		}
 
 		/// <summary>
 		/// Parse a given sequence of characters.
 		/// </summary>
-		public static Parser<IEnumerable<char>, char> Chars (IEnumerable<char> chars)
+		private static Parser<string, char> StringChars (string str, int index)
 		{
-			return chars.None () ? chars.ToParser<IEnumerable<char>, char> () :
-				Char (chars.First ()).Then (
-				Chars (chars.Skip (1)).Then (
-				chars.ToParser<IEnumerable<char>, char> ()));
-		}
-
-		/// <summary>
-		/// Convert a parser that returns StrictList[char] to one that returns a string.
-		/// </summary>
-		public static Parser<string, char> AsString (this Parser<IEnumerable<char>, char> parser)
-		{
-			return from cs in parser
-				   select cs.CharsToString ();
+			return index >= str.Length ? 
+				str.ToParser<string, char> () :
+				Char (str[index]).Then (StringChars (str, index + 1));
 		}
 
 		/// <summary>
@@ -109,7 +113,7 @@
 		/// </summary>
 		public static Parser<string, char> String (string str)
 		{
-			return Chars (str).AsString ().Expect (str);
+			return StringChars (str, 0).Expect (str);
 		}
 
 		/// <summary>
@@ -140,7 +144,7 @@
 		/// </summary>
 		public static Parser<string, char> WhiteSpace ()
 		{
-			return from _ in Parser.Satisfy<char> (char.IsWhiteSpace).OneOrMore ()
+			return from _ in WhitespaceChar ().OneOrMore ()
 				   select string.Empty;
 		}
 
@@ -162,6 +166,13 @@
 			return from s in NoneOf ('\r', '\n').ZeroOrMore ()
 				   from nl in NewLine ()
 				   select s.ToString ("", "", "") + (keepLinefeed ? nl : "");
+		}
+
+		public static Parser<string, char> BlankLine (bool keepLinefeed = false)
+		{
+			return from s in SpacesOrTabs ()
+				   from nl in NewLine ()
+				   select s + (keepLinefeed ? nl : "");
 		}
 
 		public static Parser<string, char> Identifier ()

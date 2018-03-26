@@ -1,6 +1,7 @@
 ﻿namespace PegCombinator
 {
     using System;
+	using System.Linq;
     using ExtensionCord;
 
     public delegate ParseResult<T> Parser<T, S> (IParserInput<S> input);
@@ -63,6 +64,11 @@
                 return res;
             };
         }
+
+		public static Parser<T, T> NotSatisfy<T> (Func<T, bool> predicate)
+		{
+			return Satisfy<T> (x => !predicate (x));
+		}
 
         /// <summary>
         /// The monadic bind. Runs the first parser, and if it succeeds, feeds the
@@ -166,6 +172,27 @@
                    select x | xs;
         }
 
+		/// <summary>
+		/// Parsing succeeds if the given parser can be executed between min to max times.
+		/// </summary>
+		public static Parser<Seq<T>, S> Occurrences<T, S> (this Parser<T, S> parser, 
+			int min, int max)
+		{
+			var p = parser.ZeroOrMore ();
+			return input =>
+			{
+				var res = p (input);
+				if (res)
+				{
+					var cnt = res.Result == null ? 0 : res.Result.Count ();
+					return cnt >= min && cnt <= max ? res :
+						ParseResult<Seq<T>>.Failed (input.Position, cnt + " occurrences",
+							Seq.Cons (min + " to " + max + " occurrences of " + res.Expected));
+				}
+				return res;
+			};
+		}
+
         /// <summary>
         /// Parses an optional input.
         /// </summary>
@@ -217,6 +244,11 @@
                 return ParseResult<T>.Succeeded (input.Position, default (T), false);
             };
         }
+
+		public static Parser<object, S> Position<S> ()
+		{
+			return input => ParseResult<object>.Succeeded (input.Position, input.Position, false);
+		}
 
         /// <summary>
         /// Upcast the result of the parser.

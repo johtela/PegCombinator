@@ -7,6 +7,19 @@
 
     public static class SequenceParsers
     {
+		private static Parser<Seq<T>, T> SeqPart<T> (T[] items, int index)
+		{
+			return index >= items.Length ? Parser.ToParser<Seq<T>, T> (null) :
+				from x in Parser.Satisfy<T> (x => x.Equals (items[index]))
+				from ys in SeqPart (items, index + 1)
+				select x | ys;
+		}
+
+		public static Parser<Seq<T>, T> Sequence<T> (params T[] items)
+		{
+			return SeqPart (items, 0);
+		}
+
 		/// <summary>
 		/// Creates a parser that will read a list of items separated by a separator.
 		/// The list needs to have at least one item.
