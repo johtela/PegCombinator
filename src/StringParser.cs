@@ -1,8 +1,7 @@
 ﻿namespace PegCombinator
 {
 	using System;
-	using System.Collections.Generic;
-	using System.Linq;
+	using System.Text;
 	using ExtensionCord;
 
 	/// <summary>
@@ -75,7 +74,7 @@
 		public static Parser<string, char> Word ()
 		{
 			return from xs in Letter ().OneOrMore ()
-				   select xs.ToString ("", "", "");
+				   select xs.AsString ();
 		}
 
 		/// <summary>
@@ -150,8 +149,8 @@
 
 		public static Parser<string, char> SpacesOrTabs ()
 		{
-			return from s in OneOf (' ', '\t').ZeroOrMore ()
-				   select s.ToString ("", "", "");
+			return from s in OneOf (' ', '\t').OneOrMore ()
+				   select s.AsString ();
 		}
 
 		public static Parser<string, char> NewLine ()
@@ -165,7 +164,7 @@
 		{
 			return from s in NoneOf ('\r', '\n').ZeroOrMore ()
 				   from nl in NewLine ()
-				   select s.ToString ("", "", "") + (keepLinefeed ? nl : "");
+				   select s.AsString () + (keepLinefeed ? nl : "");
 		}
 
 		public static Parser<string, char> BlankLine (bool keepLinefeed = false)
@@ -179,7 +178,7 @@
 		{
 			return from x in Letter ()
 				   from xs in AlphaNumeric ().ZeroOrMore ()
-				   select (x | xs).ToString ("", "", "");
+				   select (x | xs).AsString ();
 		}
 
 		public static Parser<T, char> Token<T> (this Parser<T, char> parser)
@@ -187,6 +186,14 @@
 			return from v in parser
 				   from _ in WhiteSpace ()
 				   select v;
+		}
+
+		public static string AsString (this Seq<char> sequence)
+		{
+			var res = new StringBuilder ();
+			for (var s = sequence; s != null; s = s.Rest)
+				res.Append (s.First);
+			return res.ToString ();
 		}
 	}
 }

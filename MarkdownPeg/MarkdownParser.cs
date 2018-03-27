@@ -8,45 +8,62 @@
 
 	public class MarkdownParser
     {
+		protected virtual string Block (object start, object end, string blockText) =>
+			blockText;
 
-		protected virtual string Heading (object start, object end, int headingLevel,
-			string headingText) =>
+		protected virtual string Heading (object start, object end, 
+			int headingLevel, string headingText) =>
 			"#".Times (headingLevel) + " " + headingText;
 
-		private Parser<string, char> Doc () => null;
+		protected virtual string Text (object start, object end, string text) =>
+			text;
+
+		private Parser<Seq<string>, char> Doc () => 
+			Block ().ZeroOrMore ();
 
 		private Parser<string, char> Block () => 
-				AtxHeading ();
+			from blanks in SP.BlankLine ().ZeroOrMore ()
+			from startPos in Parser.Position<char> ()
+			from block in AtxHeading ()
+			from endPos in Parser.Position<char> ()
+			select Block (startPos, endPos, block);
 
 		private Parser<int, char> AtxStart () =>
 			from cs in SP.Char ('#').Occurrences (1, 6)
+			from sp in SP.SpacesOrTabs ()
 			select cs.Count ();
 
+		private Parser<string, char> AtxEnd () =>
+			Sp ()
+			.Then (SP.Char ('#').ZeroOrMore ())
+			.Then (Sp ())
+			.Optional ("");
+
 		private Parser<string, char> AtxInline () =>
-			from nl in SP.NewLine ().Not ()
-			from notext in Parser.Not (
-				WS ()
-				.Then (SP.Char ('#').ZeroOrMore ())
-				.Then (WS ())
-				.Then (SP.NewLine ()))
+			from notAtEnd in AtxEnd ().Then (SP.NewLine ()).Not ()
 			from inline in Inline ()
 			select inline;
 
 		private Parser<string, char> AtxHeading () =>
-			from start in Parser.Position<char> ()
+			from ni in NonindentSpace ()
+			from startPos in Parser.Position<char> ()
 			from level in AtxStart ()
-			from inline in AtxInline ()
-			from end in Parser.Position<char> ()
-			select Heading (start, end, level, inline);
+			from inlines in AtxInline ().OneOrMore ()
+			from atxend in AtxEnd ()
+			from nl in SP.NewLine ()
+			from endPos in Parser.Position<char> ()
+			select Heading (startPos, endPos, level, inlines.ToString ("", "", ""));
 
 		private Parser<string, char> Inline () => 
 			SP.SpacesOrTabs ()
 			.Or (Text ());
 
 		private Parser<string, char> Text () =>
+			from startPos in Parser.Position<char> ()
 			from nc in NormalChar ()
 			from cs in Parser.NotSatisfy<char> (char.IsWhiteSpace).ZeroOrMore ()
-			select (nc | cs).ToString ("", "", "");
+			from endPos in Parser.Position<char> ()
+			select Text(startPos, endPos, (nc | cs).AsString ());
 
 		private Parser<char, char> SpecialChar () => SP.OneOf ('~', '*', '_', '`', '&',
 			'[', ']', '(', ')', '<', '!', '#', '\\', '\'', '"');	
@@ -54,6 +71,10 @@
 		private Parser<char, char> NormalChar () =>
 			Parser.Not (SpecialChar ().Or (SP.WhitespaceChar ())).Then (SP.AnyChar ());
 
-		private Parser<string, char> WS () => SP.WhiteSpace ().Optional ("");
+		private Parser<string, char> Sp () => SP.SpacesOrTabs ().Optional ("");
+
+		private Parser<string, char> NonindentSpace () =>
+			from sp in SP.Char (' ').Occurrences (0, 3)
+			select sp.AsString ();
 	}
 }
