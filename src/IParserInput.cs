@@ -34,15 +34,9 @@
 
 			public void Dispose () { }
 
-			public bool MoveNext ()
-			{
-				return ++_position < _input.Length;
-			}
+			public bool MoveNext () => _position++ < _input.Length;
 
-			public void Reset ()
-			{
-				_position = 0;
-			}
+			public void Reset () => _position = 0;
 		}
 
 		private class ArrayInput<S> : IParserInput<S>
@@ -67,15 +61,9 @@
 
 			public void Dispose () { }
 
-			public bool MoveNext ()
-			{
-				return ++_position < _input.Length;
-			}
+			public bool MoveNext () => _position++ < _input.Length;
 
-			public void Reset ()
-			{
-				_position = 0;
-			}
+			public void Reset () => _position = 0;
 		}
 
 		private class StreamInput<S> : IParserInput<S>
@@ -98,10 +86,7 @@
 
 			object IEnumerator.Current => Current;
 
-			public void Dispose ()
-			{
-				_input.Dispose ();
-			}
+			public void Dispose () => _input.Dispose ();
 
 			public bool MoveNext ()
 			{
@@ -115,25 +100,56 @@
 				return true;
 			}
 
-			public void Reset ()
+			public void Reset () => _input.Seek (0, SeekOrigin.Begin);
+		}
+
+		private class Terminator<S> : IParserInput<S>
+		{
+			private IParserInput<S> _input;
+			private S _terminator;
+			private bool _atEnd;
+
+			public Terminator (IParserInput<S> input, S terminator)
 			{
-				_input.Seek (0, SeekOrigin.Begin);
+				_input = input;
+				_terminator = terminator;
 			}
+
+			public object Position
+			{
+				get => _input.Position;
+				set => _input.Position = value;
+			}
+
+			public S Current => _input.Current;
+
+			object IEnumerator.Current => _atEnd ? _terminator : _input.Current;
+
+			public void Dispose () => _input.Dispose ();
+
+			public bool MoveNext ()
+			{
+				if (_atEnd)
+					return false;
+				if (!_input.MoveNext ())
+					_atEnd = true;
+				return true;
+			}
+
+			public void Reset () => _input.Reset ();
 		}
 
-		public static IParserInput<char> String (string input)
-		{
-			return new StringInput (input);
-		}
+		public static IParserInput<char> String (string input) => 
+			new StringInput (input);
 
-		public static IParserInput<S> Array<S> (S[] input)
-		{
-			return new ArrayInput<S> (input);
-		}
+		public static IParserInput<S> Array<S> (S[] input) => 
+			new ArrayInput<S> (input);
 
-		public static IParserInput<S> Stream<S> (Stream input)
-		{
-			return new StreamInput<S> (input);
-		}
+		public static IParserInput<S> Stream<S> (Stream input) => 
+			new StreamInput<S> (input);
+
+		public static IParserInput<S> TerminateWith<S> (this IParserInput<S> input,
+			S terminator) => 
+			new Terminator<S> (input, terminator);
 	}
 }

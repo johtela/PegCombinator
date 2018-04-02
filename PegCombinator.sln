@@ -12,6 +12,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkdownPeg", "MarkdownPeg\MarkdownPeg.csproj", "{789043EC-411C-49BD-AB1B-9D41B4628F26}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CommonMark", "CommonMark\CommonMark.csproj", "{C846F0A6-C451-41C5-9B8F-01321D054E59}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,6 +28,10 @@ Global
 		{789043EC-411C-49BD-AB1B-9D41B4628F26}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{789043EC-411C-49BD-AB1B-9D41B4628F26}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{789043EC-411C-49BD-AB1B-9D41B4628F26}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C846F0A6-C451-41C5-9B8F-01321D054E59}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C846F0A6-C451-41C5-9B8F-01321D054E59}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C846F0A6-C451-41C5-9B8F-01321D054E59}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C846F0A6-C451-41C5-9B8F-01321D054E59}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

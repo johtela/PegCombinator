@@ -67,7 +67,7 @@
         public Seq<string> MergeExpected (ParseResult<T> other)
         {
             var result = Expected;
-            if (other is Fail)
+            if (other is Fail && !other.Expected.IsEmpty ())
                 foreach (var exp in other.Expected)
                     result = exp | result;
             return result;
