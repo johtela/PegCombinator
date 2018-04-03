@@ -37,7 +37,7 @@
         /// </summary>
         public static Parser<T, S> ToParser<T, S> (this T value)
         {
-            return input => ParseResult<T>.Succeeded (input.Position, value, false);
+            return input => ParseResult<T>.Succeeded (input.Position, value);
         }
 
         public static Parser<T, S> Fail<T, S> (string found, string expected)
@@ -58,7 +58,7 @@
                     return ParseResult<T>.Failed (input.Position, "end of input");
                 var item = input.Current;
                 if (predicate (item))
-                    return ParseResult<T>.Succeeded (input.Position, item, true);
+                    return ParseResult<T>.Succeeded (input.Position, item);
                 var res = ParseResult<T>.Failed (input.Position, item.ToString ());
                 input.Position = pos;
                 return res;
@@ -86,7 +86,7 @@
                 if (res1)
                 {
                     var res2 = func (res1.Result) (input);
-                    if (!res2 && res1.ConsumedInput)
+                    if (!res2 && !pos.Equals (input.Position))
                         input.Position = pos;   // backtrack
                     return res2;
                 }
@@ -236,13 +236,13 @@
                     var found = res.Result.ToString ();
                     return ParseResult<T>.Failed (input.Position, found, Seq.Cons ("not " + found));
                 }
-                return ParseResult<T>.Succeeded (input.Position, default (T), false);
+                return ParseResult<T>.Succeeded (input.Position, default (T));
             };
         }
 
 		public static Parser<object, S> Position<S> ()
 		{
-			return input => ParseResult<object>.Succeeded (input.Position, input.Position, false);
+			return input => ParseResult<object>.Succeeded (input.Position, input.Position);
 		}
 
         /// <summary>

@@ -6,7 +6,6 @@
     public abstract class ParseResult<T>
     {
         public abstract T Result { get; }
-        public abstract bool ConsumedInput { get; }
         public abstract string Found { get; }
         public abstract Seq<string> Expected { get; protected set; }
 
@@ -15,18 +14,14 @@
 		private class Ok : ParseResult<T>
         {
             private T _result;
-            private bool _consumedInput;
 
-            public Ok (object position, T result, bool consumedInput)
+            public Ok (object position, T result)
             {
 				Position = position;
                 _result = result;
-                _consumedInput = consumedInput;
             }
 
             public override T Result => _result;
-
-            public override bool ConsumedInput => _consumedInput;
 
             public override string Found => 
                 throw new InvalidOperationException ("Terminal not available");
@@ -53,8 +48,6 @@
             public override T Result => 
                 throw new InvalidOperationException ("Result not available");
 
-            public override bool ConsumedInput => false;
-
             public override string Found => _found;
 
             public override Seq<string> Expected
@@ -78,9 +71,9 @@
             return result is Ok;
         }
 
-        public static ParseResult<T> Succeeded (object position, T result, bool consumedInput)
+        public static ParseResult<T> Succeeded (object position, T result)
         {
-            return new Ok (position, result, consumedInput);
+            return new Ok (position, result);
         }
 
         public static ParseResult<T> Failed (object position, string found)

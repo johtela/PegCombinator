@@ -1,5 +1,6 @@
 ﻿namespace PegCombinator
 {
+	using System;
 	using System.Collections;
 	using System.Collections.Generic;
 	using System.IO;
@@ -26,7 +27,13 @@
 			public object Position
 			{
 				get => _position;
-				set => _position = (int)value;
+				set
+				{
+					var i = (int)value;
+					if (i < -1 || i > _input.Length)
+						throw new IndexOutOfRangeException ();
+					_position = i;
+				}
 			}
 
 			public char Current => _input[_position];
@@ -35,7 +42,10 @@
 
 			public void Dispose () { }
 
-			public bool MoveNext () => ++_position < _input.Length;
+			public bool MoveNext () => 
+				_position < _input.Length ?
+					++_position < _input.Length :
+					false;
 
 			public void Reset () => _position = -1;
 		}
@@ -54,7 +64,13 @@
 			public object Position
 			{
 				get => _position;
-				set => _position = (int)value;
+				set
+				{
+					var i = (int)value;
+					if (i < -1 || i > _input.Length)
+						throw new IndexOutOfRangeException ();
+					_position = i;
+				}
 			}
 
 			public S Current => _input[_position];
@@ -63,7 +79,10 @@
 
 			public void Dispose () { }
 
-			public bool MoveNext () => ++_position < _input.Length;
+			public bool MoveNext () =>
+				_position < _input.Length ?
+					++_position < _input.Length :
+					false;
 
 			public void Reset () => _position = -1;
 		}
@@ -109,7 +128,7 @@
 		{
 			private IParserInput<S> _input;
 			private S _terminator;
-			private bool _atEnd;
+			private object _endPos;
 
 			public Terminator (IParserInput<S> input, S terminator)
 			{
@@ -117,17 +136,18 @@
 				_terminator = terminator;
 			}
 
+			private bool AtEnd () => _input.Position.Equals (_endPos);
+
 			public object Position
 			{
 				get => _input.Position;
-				set
-				{
-					_input.Position = value;
-					_atEnd = false;
-				}
+				set => _input.Position = value;
 			}
 
-			public S Current => _atEnd ? _terminator : _input.Current;
+			public S Current => 
+				AtEnd () ? 
+					_terminator : 
+					_input.Current;
 
 			object IEnumerator.Current => Current;
 
@@ -135,18 +155,14 @@
 
 			public bool MoveNext ()
 			{
-				if (_atEnd)
+				if (AtEnd ())
 					return false;
 				if (!_input.MoveNext ())
-					_atEnd = true;
+					_endPos = _input.Position;
 				return true;
 			}
 
-			public void Reset ()
-			{
-				_input.Reset ();
-				_atEnd = false;
-			}
+			public void Reset () => _input.Reset ();
 		}
 
 		public static IParserInput<char> String (string input) => 

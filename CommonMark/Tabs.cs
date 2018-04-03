@@ -1,27 +1,26 @@
 ﻿namespace CommonMark
 {
-	using PegCombinator;
-	using MarkdownPeg;
 	using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 	[TestClass]
-	public class Tabs
+	public class Tabs : TestBase
 	{
-		public MarkdownToHtml Parser;
-
-		public Tabs ()
-		{
-			Parser = new MarkdownToHtml ();
-		}
-
-		private void TestParse (string input, string output) => 
-			Assert.AreEqual (output,
-				Parser.Run (ParserInput.String (input).TerminateWith ('\n')));
-
+		/* [Example 1](http://spec.commonmark.org/0.28/#example-1) */
 		[TestMethod]
-		public void Example1 () => 
-			TestParse (
-				"\tfoo\tbaz\t\tbim",
-				"<pre><code>foo\tbaz\t\tbim</code></pre>");
+		public void Example1 () => TestParse (
+			"\tfoo\tbaz\t\tbim",
+			"<pre><code>foo\tbaz\t\tbim\n</code></pre>");
+
+		/* [Example 2](http://spec.commonmark.org/0.28/#example-2) */
+		[TestMethod]
+		public void Example2 () => TestParse (
+			"  \tfoo\tbaz\t\tbim",
+			"<pre><code>foo\tbaz\t\tbim\n</code></pre>");
+
+		/* [Example 3](http://spec.commonmark.org/0.28/#example-3) */
+		[TestMethod]
+		public void Example3 () => TestParse (
+			"    a\ta\n    ὐ\ta",
+			"<pre><code>a\ta\nὐ\ta\n</code></pre>");
 	}
 }

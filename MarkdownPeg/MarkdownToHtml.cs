@@ -8,14 +8,18 @@
 
 	public class MarkdownToHtml : MarkdownParser
 	{
-		protected override string Heading (object start, object end, int headingLevel, string headingText)
+		private string _newline;
+
+		public MarkdownToHtml (string newline)
 		{
-			return string.Format ("<h{0}>{1}</h{0}>", headingLevel, headingText);
+			_newline = newline;
 		}
 
-		protected override string Verbatim (object start, object end, string verbatimText)
-		{
-			return string.Format ("<pre><code>{0}</code></pre>", verbatimText);
-		}
+		protected override string Heading (object start, object end, int headingLevel,
+			string headingText) => 
+			string.Format ("<h{0}>{1}</h{0}>{2}", headingLevel, headingText, _newline);
+
+		protected override string Verbatim (object start, object end, string verbatimText) => 
+			string.Format ("<pre><code>{0}</code></pre>", verbatimText);
 	}
 }

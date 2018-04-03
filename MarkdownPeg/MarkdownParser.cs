@@ -10,15 +10,14 @@
     {
 		private Parser<string, char> _doc;
 
-		public MarkdownParser ()
-		{
+		public MarkdownParser () => 
 			_doc = Doc ();
-		}
 
-		public string Run (IParserInput<char> input)
-		{
-			return _doc.Parse (input);
-		}
+		public string Run (IParserInput<char> input) => 
+			_doc.Parse (input.TerminateWith ('\n'));
+
+		public string Run (string input) => 
+			Run (ParserInput.String (input));
 
 		/*
 		## Visitor Methods
@@ -42,10 +41,11 @@
 		private Parser<string, char> Doc ()
 		{
 			var SpecialChar =
-				SP.OneOf ('~', '*', '_', '`', '&', '[', ']', '(', ')', '<', '!', '#', '\\', '\'', '"');
+				SP.OneOf ('~', '*', '_', '`', '&', '[', ']', '(', ')', '<', '!', 
+					'#', '\\', '\'', '"');
 
 			var NormalChar =
-				Parser.Not (SpecialChar.Or (SP.WhitespaceChar ())).Then (SP.AnyChar ());
+				Parser.Not (SpecialChar.Or (SP.WhitespaceChar)).Then (SP.AnyChar);
 
 			var NormalText =
 				from startPos in Parser.Position<char> ()
@@ -54,15 +54,19 @@
 				from endPos in Parser.Position<char> ()
 				select Text (startPos, endPos, (nc | cs).AsString ());
 
-			var Sp =
-				SP.SpacesOrTabs ().Optional ("");
+			var Sp = SP.SpacesOrTabs.Optional ("");
 
-			var Indent =
-				SP.String ("\t").Or (SP.String ("    "));
+			var NonindentSpace =
+				from sp in SP.Char (' ').Occurrences (0, 3)
+				select sp.AsString ();
+
+			var Indent = 
+				NonindentSpace.Then(SP.String ("\t"))
+				.Or (SP.String ("    "));
 
 			var Line =
 				from chs in SP.NoneOf ('\r', '\n').ZeroOrMore ()
-				from nl in SP.NewLine ()
+				from nl in SP.NewLine
 				select chs.ToString ("", "", nl);
 
 			var IndentedLine =
@@ -72,10 +76,6 @@
 				from nb in SP.BlankLine ().Not ()
 				from il in IndentedLine
 				select il;
-
-			var NonindentSpace =
-				from sp in SP.Char (' ').Occurrences (0, 3)
-				select sp.AsString ();
 
 			var VerbatimChunk =
 				from bls in SP.BlankLine (true).ZeroOrMore ()
@@ -91,7 +91,7 @@
 				select Verbatim (startPos, endPos, chunks.SeparateWith (""));
 
 			var Inline =
-				SP.SpacesOrTabs ()
+				SP.SpacesOrTabs
 				.Or (NormalText);
 
 			var AtxEnd =
@@ -101,13 +101,13 @@
 				.Optional ("");
 
 			var AtxInline =
-				from notAtEnd in AtxEnd.Then (SP.NewLine ()).Not ()
+				from notAtEnd in AtxEnd.Then (SP.NewLine).Not ()
 				from inline in Inline
 				select inline;
 
 			var AtxStart =
 				from cs in SP.Char ('#').Occurrences (1, 6)
-				from sp in SP.SpacesOrTabs ()
+				from sp in SP.SpacesOrTabs
 				select cs.Count ();
 
 			var AtxHeading =
@@ -116,12 +116,16 @@
 				from level in AtxStart
 				from inlines in AtxInline.OneOrMore ()
 				from atxend in AtxEnd
-				from nl in SP.NewLine ()
+				from nl in SP.NewLine
 				from endPos in Parser.Position<char> ()
 				select Heading (startPos, endPos, level, inlines.ToString ("", "", ""));
 
+			//var Para =
+			//	from ni in NonindentSpace
+			//	from inlines in Inline.
+
 			var AnyBlock =
-				//from blanks in SP.BlankLine ().ZeroOrMore ()
+				from blanks in SP.BlankLine ().ZeroOrMore ()
 				from startPos in Parser.Position<char> ()
 				from block in VerbatimBlock
 					.Or (AtxHeading)
