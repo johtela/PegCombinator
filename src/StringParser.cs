@@ -171,7 +171,7 @@
 		{
 			return from s in SpacesOrTabs ()
 				   from nl in NewLine ()
-				   select s + (keepLinefeed ? nl : "");
+				   select keepLinefeed ? s + nl : s;
 		}
 
 		public static Parser<string, char> Identifier ()

@@ -1,7 +1,4 @@
-﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-namespace CommonMark
+﻿namespace CommonMark
 {
 	using PegCombinator;
 	using MarkdownPeg;
@@ -10,18 +7,16 @@ namespace CommonMark
 	[TestClass]
 	public class Tabs
 	{
-		public MarkdownToHtml Visitor;
+		public MarkdownToHtml Parser;
 
 		public Tabs ()
 		{
-			Visitor = new MarkdownToHtml ();
+			Parser = new MarkdownToHtml ();
 		}
 
 		private void TestParse (string input, string output) => 
 			Assert.AreEqual (output,
-				MarkdownParser.Run (
-					ParserInput.String (input).TerminateWith ('\n'), 
-					Visitor));
+				Parser.Run (ParserInput.String (input).TerminateWith ('\n')));
 
 		[TestMethod]
 		public void Example1 () => 

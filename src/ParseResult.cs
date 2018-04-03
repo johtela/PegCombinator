@@ -80,7 +80,7 @@
 
         public static ParseResult<T> Succeeded (object position, T result, bool consumedInput)
         {
-            return new Ok (position, result, false);
+            return new Ok (position, result, consumedInput);
         }
 
         public static ParseResult<T> Failed (object position, string found)

@@ -20,6 +20,7 @@
 			public StringInput (string input)
 			{
 				_input = input;
+				Reset ();
 			}
 
 			public object Position
@@ -34,9 +35,9 @@
 
 			public void Dispose () { }
 
-			public bool MoveNext () => _position++ < _input.Length;
+			public bool MoveNext () => ++_position < _input.Length;
 
-			public void Reset () => _position = 0;
+			public void Reset () => _position = -1;
 		}
 
 		private class ArrayInput<S> : IParserInput<S>
@@ -47,6 +48,7 @@
 			public ArrayInput (S[] input)
 			{
 				_input = input;
+				Reset ();
 			}
 
 			public object Position
@@ -61,9 +63,9 @@
 
 			public void Dispose () { }
 
-			public bool MoveNext () => _position++ < _input.Length;
+			public bool MoveNext () => ++_position < _input.Length;
 
-			public void Reset () => _position = 0;
+			public void Reset () => _position = -1;
 		}
 
 		private class StreamInput<S> : IParserInput<S>
@@ -118,12 +120,16 @@
 			public object Position
 			{
 				get => _input.Position;
-				set => _input.Position = value;
+				set
+				{
+					_input.Position = value;
+					_atEnd = false;
+				}
 			}
 
-			public S Current => _input.Current;
+			public S Current => _atEnd ? _terminator : _input.Current;
 
-			object IEnumerator.Current => _atEnd ? _terminator : _input.Current;
+			object IEnumerator.Current => Current;
 
 			public void Dispose () => _input.Dispose ();
 
@@ -136,7 +142,11 @@
 				return true;
 			}
 
-			public void Reset () => _input.Reset ();
+			public void Reset ()
+			{
+				_input.Reset ();
+				_atEnd = false;
+			}
 		}
 
 		public static IParserInput<char> String (string input) => 

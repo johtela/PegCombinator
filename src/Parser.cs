@@ -77,6 +77,8 @@
         public static Parser<U, S> Bind<T, U, S> (this Parser<T, S> parser, 
             Func<T, Parser<U, S>> func)
         {
+			if (parser == null)
+				throw new ArgumentNullException (nameof (parser));
             return input =>
             {
                 var pos = input.Position;
@@ -109,7 +111,6 @@
         {
             return input =>
             {
-                var pos = input.Position;
                 var res1 = parser (input);
                 if (res1)
                   return res1;
@@ -125,7 +126,7 @@
             return input =>
             {
                 var res = parser (input);
-                if (res)
+                if (!res)
                     return ParseResult<T>.Failed (res.Position, res.Found, 
                         Seq.Cons (expected, res.Expected));
                 return res;
@@ -178,19 +179,13 @@
 		public static Parser<Seq<T>, S> Occurrences<T, S> (this Parser<T, S> parser, 
 			int min, int max)
 		{
-			var p = parser.ZeroOrMore ();
-			return input =>
+			return parser.ZeroOrMore ().Bind (s => 
 			{
-				var res = p (input);
-				if (res)
-				{
-					var cnt = res.Result == null ? 0 : res.Result.Count ();
-					return cnt >= min && cnt <= max ? res :
-						ParseResult<Seq<T>>.Failed (input.Position, cnt + " occurrences",
-							Seq.Cons (min + " to " + max + " occurrences of " + res.Expected));
-				}
-				return res;
-			};
+				var cnt = s.IsEmpty () ? 0 : s.Count ();
+				return cnt >= min && cnt <= max ?  
+					ToParser<Seq<T>, S> (s) :
+					Fail<Seq<T>, S> (cnt + " occurrences", min + " to " + max + " occurrences");
+			});
 		}
 
         /// <summary>
