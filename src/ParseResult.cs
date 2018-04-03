@@ -9,13 +9,13 @@
         public abstract string Found { get; }
         public abstract Seq<string> Expected { get; protected set; }
 
-		public object Position { get; private set; }
+		public long Position { get; private set; }
 
 		private class Ok : ParseResult<T>
         {
             private T _result;
 
-            public Ok (object position, T result)
+            public Ok (long position, T result)
             {
 				Position = position;
                 _result = result;
@@ -38,7 +38,7 @@
             private string _found;
             private Seq<string> _expected;
 
-            public Fail (object position, string found, Seq<string> expected)
+            public Fail (long position, string found, Seq<string> expected)
             {
                 Position = position;
                 _found = found;
@@ -71,17 +71,17 @@
             return result is Ok;
         }
 
-        public static ParseResult<T> Succeeded (object position, T result)
+        public static ParseResult<T> Succeeded (long position, T result)
         {
             return new Ok (position, result);
         }
 
-        public static ParseResult<T> Failed (object position, string found)
+        public static ParseResult<T> Failed (long position, string found)
         {
             return new Fail (position, found, null);
         }
 
-        public static ParseResult<T> Failed (object position, string found, Seq<string> expected)
+        public static ParseResult<T> Failed (long position, string found, Seq<string> expected)
         {
             return new Fail (position, found, expected);
         }

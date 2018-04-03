@@ -15,11 +15,11 @@
 			_newline = newline;
 		}
 
-		protected override string Heading (object start, object end, int headingLevel,
+		protected override string Heading (long start, long end, int headingLevel,
 			string headingText) => 
 			string.Format ("<h{0}>{1}</h{0}>{2}", headingLevel, headingText, _newline);
 
-		protected override string Verbatim (object start, object end, string verbatimText) => 
+		protected override string Verbatim (long start, long end, string verbatimText) => 
 			string.Format ("<pre><code>{0}</code></pre>", verbatimText);
 	}
 }

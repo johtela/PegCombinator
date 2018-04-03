@@ -51,7 +51,7 @@
         /// </summary>
         public static Parser<T, T> Satisfy<T> (Func<T, bool> predicate)
         {
-            return input =>
+            return Memoize<T, T> (input =>
             {
                 var pos = input.Position;
                 if (!input.MoveNext ())
@@ -62,7 +62,7 @@
                 var res = ParseResult<T>.Failed (input.Position, item.ToString ());
                 input.Position = pos;
                 return res;
-            };
+            });
         }
 
 		public static Parser<T, T> NotSatisfy<T> (Func<T, bool> predicate)
@@ -79,6 +79,7 @@
         {
 			if (parser == null)
 				throw new ArgumentNullException (nameof (parser));
+			parser = parser.Memoize ();
             return input =>
             {
                 var pos = input.Position;
@@ -86,7 +87,7 @@
                 if (res1)
                 {
                     var res2 = func (res1.Result) (input);
-                    if (!res2 && !pos.Equals (input.Position))
+                    if (!res2 && pos != input.Position)
                         input.Position = pos;   // backtrack
                     return res2;
                 }
@@ -215,18 +216,18 @@
 
         public static Parser<T, S> And<T, S> (this Parser<T, S> parser)
         {
-            return input =>
+            return Memoize<T, S> (input =>
             {
                 var pos = input.Position;
                 var res = parser (input);
                 input.Position = pos;
                 return res;
-            };
+            });
         }
 
         public static Parser<T, S> Not<T, S> (this Parser<T, S> parser)
         {
-            return input =>
+            return Memoize<T, S> (input =>
             {
                 var pos = input.Position;
                 var res = parser (input);
@@ -237,12 +238,28 @@
                     return ParseResult<T>.Failed (input.Position, found, Seq.Cons ("not " + found));
                 }
                 return ParseResult<T>.Succeeded (input.Position, default (T));
-            };
+            });
         }
 
-		public static Parser<object, S> Position<S> ()
+		public static Parser<long, S> Position<S> ()
 		{
-			return input => ParseResult<object>.Succeeded (input.Position, input.Position);
+			return input => ParseResult<long>.Succeeded (input.Position, input.Position);
+		}
+
+		public static Parser<T, S> Memoize<T, S> (this Parser<T, S> parser)
+		{
+			return parser;
+			ParseResult<T> lastResult = null;
+			long lastPos = long.MinValue;
+			return input =>
+			{
+				var pos = input.Position;
+				if (pos == lastPos && lastResult != null)
+					return lastResult;
+				lastPos = pos;
+				lastResult = parser (input);
+				return lastResult;
+			};
 		}
 
         /// <summary>

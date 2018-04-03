@@ -8,7 +8,7 @@
 
 	public interface IParserInput<S> : IEnumerator<S>
     {
-        object Position { get; set; }
+        long Position { get; set; }
     }
 
 	public static class ParserInput
@@ -24,7 +24,7 @@
 				Reset ();
 			}
 
-			public object Position
+			public long Position
 			{
 				get => _position;
 				set
@@ -61,7 +61,7 @@
 				Reset ();
 			}
 
-			public object Position
+			public long Position
 			{
 				get => _position;
 				set
@@ -97,10 +97,10 @@
 				_input = input;
 			}
 
-			public object Position
+			public long Position
 			{
 				get => _input.Position;
-				set => _input.Position = (long)value;
+				set => _input.Position = value;
 			}
 
 			public S Current => _current;
@@ -128,17 +128,18 @@
 		{
 			private IParserInput<S> _input;
 			private S _terminator;
-			private object _endPos;
+			private long _endPos;
 
 			public Terminator (IParserInput<S> input, S terminator)
 			{
 				_input = input;
 				_terminator = terminator;
+				_endPos = long.MaxValue;
 			}
 
-			private bool AtEnd () => _input.Position.Equals (_endPos);
+			private bool AtEnd () => _input.Position == _endPos;
 
-			public object Position
+			public long Position
 			{
 				get => _input.Position;
 				set => _input.Position = value;

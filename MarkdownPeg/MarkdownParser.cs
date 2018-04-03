@@ -22,17 +22,17 @@
 		/*
 		## Visitor Methods
 		*/
-		protected virtual string Block (object start, object end,
+		protected virtual string Block (long start, long end,
 			string blockText) => blockText;
 
-		protected virtual string Heading (object start, object end,
+		protected virtual string Heading (long start, long end,
 			int headingLevel, string headingText) =>
 			"#".Times (headingLevel) + " " + headingText;
 
-		protected virtual string Verbatim (object start, object end,
+		protected virtual string Verbatim (long start, long end,
 			string verbatimText) => verbatimText;
 
-		protected virtual string Text (object start, object end, string text) =>
+		protected virtual string Text (long start, long end, string text) =>
 			text;
 
 		/*
