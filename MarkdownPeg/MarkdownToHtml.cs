@@ -21,5 +21,8 @@
 
 		protected override string Verbatim (long start, long end, string verbatimText) => 
 			string.Format ("<pre><code>{0}</code></pre>", verbatimText);
+
+		protected override string Paragraph (long start, long end, string text) =>
+			string.Format ("<p>{0}</p>", text);
 	}
 }

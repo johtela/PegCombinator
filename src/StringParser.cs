@@ -42,6 +42,12 @@
 		public static readonly Parser<char, char> Letter =
 			Parser.Satisfy<char> (char.IsLetter).Expect ("letter");
 
+		public static readonly Parser<char, char> Symbol =
+			Parser.Satisfy<char> (char.IsSymbol).Expect ("symbol");
+
+		public static readonly Parser<char, char> Punctuation =
+			Parser.Satisfy<char> (char.IsPunctuation).Expect ("punctuation");
+
 		/// <summary>
 		/// Parse on alphanumeric character.
 		/// </summary>
@@ -50,6 +56,9 @@
 
 		public static readonly Parser<char, char> WhitespaceChar =
 			Parser.Satisfy<char> (char.IsWhiteSpace).Expect ("whitespace character");
+
+		public static readonly Parser<char, char> NonWhitespaceChar =
+			Parser.Satisfy<char> (c => !char.IsWhiteSpace (c)).Expect ("non-whitespace character");
 
 		/// <summary>
 		/// Parse a word (sequence of consecutive letters)
@@ -134,7 +143,7 @@
 			select s.AsString () + (keepLinefeed ? nl : "");
 
 		public static Parser<string, char> BlankLine (bool keepLinefeed = false) =>
-			from s in SpacesOrTabs
+			from s in SpacesOrTabs.Optional ("")
 			from nl in NewLine
 			select keepLinefeed ? s + nl : s;
 
@@ -153,6 +162,26 @@
 			var res = new StringBuilder ();
 			for (var s = sequence; s != null; s = s.Rest)
 				res.Append (s.First);
+			return res.ToString ();
+		}
+
+		public static string EscapeWhitespace (this char chr)
+		{
+			switch (chr)
+			{
+				case '\0': return @"\0";
+				case '\t': return @"\t";
+				case '\n': return @"\n";
+				case '\r': return @"\r";
+				default: return new string (chr, 1);
+			}
+		}
+
+		public static string EscapeWhitespace (this string str)
+		{
+			var res = new StringBuilder ();
+			for (int i = 0; i < str.Length; i++)
+				res.Append (EscapeWhitespace (str[i]));
 			return res.ToString ();
 		}
 	}

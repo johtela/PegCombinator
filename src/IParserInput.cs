@@ -36,7 +36,10 @@
 				}
 			}
 
-			public char Current => _input[_position];
+			public char Current => 
+				_position < 0 || _position >= _input.Length  ? 
+					'\0' :
+					_input[_position];
 
 			object IEnumerator.Current => Current;
 
@@ -73,7 +76,10 @@
 				}
 			}
 
-			public S Current => _input[_position];
+			public S Current => 
+				_position< 0 || _position >= _input.Length? 
+					default (S) :
+					_input[_position];
 
 			object IEnumerator.Current => Current;
 

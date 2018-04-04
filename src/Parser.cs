@@ -1,6 +1,7 @@
 ﻿namespace PegCombinator
 {
     using System;
+	using System.Diagnostics;
 	using System.Linq;
     using ExtensionCord;
 
@@ -9,6 +10,9 @@
     /// </summary>
     public static class Parser
     {
+		public static bool UseMemoization { get; set; }
+		public static bool Debugging { get; set; }
+
         /// <summary>
         /// Attempt to parse an input with a given parser.
         /// </summary>
@@ -110,16 +114,18 @@
         /// </summary>
         public static Parser<T, S> Or<T, S> (this Parser<T, S> parser, Parser<T, S> other)
         {
-            return input =>
-            {
-                var res1 = parser (input);
-                if (res1)
-                  return res1;
-                var res2 = other (input);
-                if (res2)
-                    return res2;
-                return ParseResult<T>.Failed (input.Position, res2.Found, res1.MergeExpected (res2));
-            };
+			parser = parser.Memoize ();
+			other = other.Memoize ();
+			return Memoize<T, S> (input =>
+			{
+				var res1 = parser (input);
+				if (res1)
+					return res1;
+				var res2 = other (input);
+				if (res2)
+					return res2;
+				return ParseResult<T>.Failed (input.Position, res2.Found, res1.MergeExpected (res2));
+			});
         }
 
         public static Parser<T, S> Expect<T, S> (this Parser<T, S> parser, string expected)
@@ -248,7 +254,8 @@
 
 		public static Parser<T, S> Memoize<T, S> (this Parser<T, S> parser)
 		{
-			return parser;
+			if (!UseMemoization)
+				return parser;
 			ParseResult<T> lastResult = null;
 			long lastPos = long.MinValue;
 			return input =>
@@ -259,6 +266,25 @@
 				lastPos = pos;
 				lastResult = parser (input);
 				return lastResult;
+			};
+		}
+
+		public static Parser<T, S> Trace<T, S> (this Parser<T, S> parser, string ruleName)
+		{
+			if (!Debugging)
+				return parser;
+			return input =>
+			{
+				Debug.IndentSize = 2;
+				Debug.WriteLine ("{0} called with input '{1}' at position {2}",
+					ruleName, input.Current.ToString ().EscapeWhitespace (), input.Position);
+				Debug.Indent ();
+				var res = parser (input);
+				Debug.Unindent ();
+				Debug.WriteLine ("{0} {1} with input '{2}' at position {3}",
+					ruleName, res ? "SUCCEEDED" : "FAILED", 
+					input.Current.ToString ().EscapeWhitespace (), input.Position);
+				return res;
 			};
 		}
 
