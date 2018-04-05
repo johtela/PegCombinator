@@ -35,9 +35,6 @@
 		protected virtual string Paragraph (long start, long end,
 			string text) => text;
 
-		protected virtual string PlainBlock (long start, long end,
-			string text) => text;
-
 		protected virtual string Text (long start, long end, 
 			string text) => text;
 
@@ -54,13 +51,13 @@
 		*/
 		private Parser<string, char> Doc ()
 		{
-			Parser.Debugging = true;
+			Parser.Debugging = false;
+			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
 			*/
 			var SpecialChar =
-				SP.OneOf ('~', '*', '_', '`', '&', '[', ']', '(', ')', '<', '!',
-					'#', '\\', '\'', '"')
+				SP.OneOf ('*', '_', '`', '&', '\\')
 				.Trace ("SpecialChar");
 
 			var NormalChar =
@@ -125,6 +122,8 @@
 
 			#### Determination Rules
 			*/
+			var NotAtEnd = SP.AnyChar.Trace ("NotAtEnd");
+
 			var AtxStart =
 				(from ni in NonindentSpace
 				 from cs in SP.Char ('#').Occurrences (1, 6)
@@ -145,7 +144,8 @@
 				.Trace ("SetextUnderline");
 
 			var IsNormalLine =
-				(from notbl in SP.BlankLine ().Not ()
+				(from notend in NotAtEnd.And ()
+				 from notbl in SP.BlankLine ().Not ()
 				 from notgt in IsBlockQuote.Not ()
 				 from notatx in AtxStart.Not ()
 				 from notsetext in SetextUnderline.Not ()
@@ -178,13 +178,22 @@
 				.Trace ("HardLB");
 
 			var LineBreak = HardLB.Or (SoftLB).Trace ("LineBreak");
-
+			/*
+			#### Escaped Characters
+			*/
+			var EscapedChar =
+				(from bs in SP.Char ('\\')
+				 from sc in SP.OneOf ('!', '"', '#', '$', '%', '&', '\'', '(', ')',
+					 '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?',
+					 '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~')
+				 select new string (sc, 1))
+				.Trace ("EscapedChar");
 			/*
 			#### Unformatted Words
 			*/
 			var Word =
 				(from startPos in Parser.Position<char> ()
-				 from chars in SP.NonWhitespaceChar.OneOrMore ()
+				 from chars in NormalChar.OneOrMore ()
 				 from endPos in Parser.Position<char> ()
 				 select Text (startPos, endPos, chars.AsString ()))
 				.Trace ("Word");
@@ -203,6 +212,7 @@
 			var Inline =
 				LineBreak
 				.Or (SpaceBetweenWords)
+				.Or (EscapedChar)
 				.Or (Word)
 				.Trace ("Inline");
 
@@ -279,27 +289,17 @@
 				 from startPos in Parser.Position<char> ()
 				 from inlines in Inlines
 				 from endPos in Parser.Position<char> ()
-				 from bl in SP.BlankLine ().OneOrMore ()
 				 select Paragraph (startPos, endPos, inlines))
 				.Trace ("Para");
-			/*
-			### Plain Block
-			*/
-			var Plain =
-				(from startPos in Parser.Position<char> ()
-				 from inlines in Inlines
-				 from endPos in Parser.Position<char> ()
-				 select PlainBlock (startPos, endPos, inlines))
-				.Trace ("Plain");
 
 			var AnyBlock =
 				(from blanks in SP.BlankLine ().ZeroOrMore ()
+				 from notend in NotAtEnd.And ()
 				 from startPos in Parser.Position<char> ()
 				 from block in VerbatimBlock
 					 .Or (AtxHeading)
 					 .Or (SetextHeading)
 					 .Or (Para)
-					 .Or (Plain)
 				 from endPos in Parser.Position<char> ()
 				 select Block (startPos, endPos, block))
 				.Trace ("AnyBlock");

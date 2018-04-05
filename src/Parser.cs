@@ -12,15 +12,25 @@
     {
 		public static bool UseMemoization { get; set; }
 		public static bool Debugging { get; set; }
+		public static int RulesEvaluated
+		{
+			get => _rulesEvaluated;
+		}
 
-        /// <summary>
-        /// Attempt to parse an input with a given parser.
-        /// </summary>
-        public static Either<T, ParseError> TryParse<T, S> (this Parser<T, S> parser, 
+		[ThreadStatic]
+		private static int _rulesEvaluated;
+
+		/// <summary>
+		/// Attempt to parse an input with a given parser.
+		/// </summary>
+		public static Either<T, ParseError> TryParse<T, S> (this Parser<T, S> parser, 
             IParserInput<S> input)
         {
+			_rulesEvaluated = 0;
             var res = parser (input);
-            return res ?
+			if (Debugging)
+				Debug.WriteLine ("Number of rules evaluated: {0}", _rulesEvaluated);
+			return res ?
                 Either<T, ParseError>.Create (res.Result) :
                 Either<T, ParseError>.Create (ParseError.FromParseResult (res));
         }
@@ -280,6 +290,7 @@
 					ruleName, input.Current.ToString ().EscapeWhitespace (), input.Position);
 				Debug.Indent ();
 				var res = parser (input);
+				_rulesEvaluated++;
 				Debug.Unindent ();
 				Debug.WriteLine ("{0} {1} with input '{2}' at position {3}",
 					ruleName, res ? "SUCCEEDED" : "FAILED", 

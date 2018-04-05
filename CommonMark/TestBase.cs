@@ -15,7 +15,7 @@
 		protected void TestParse (string input, string output)
 		{
 			var parsed = Parser.Run (input);
-			Assert.AreEqual (output, parsed);
+			Assert.AreEqual (output.Trim (), parsed.Trim ());
 		}
 
 	}

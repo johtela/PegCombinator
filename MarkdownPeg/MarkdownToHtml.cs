@@ -20,9 +20,9 @@
 			string.Format ("<h{0}>{1}</h{0}>{2}", headingLevel, headingText, _newline);
 
 		protected override string Verbatim (long start, long end, string verbatimText) => 
-			string.Format ("<pre><code>{0}</code></pre>", verbatimText);
+			string.Format ("<pre><code>{0}</code></pre>{1}", verbatimText, _newline);
 
 		protected override string Paragraph (long start, long end, string text) =>
-			string.Format ("<p>{0}</p>", text);
+			string.Format ("<p>{0}</p>{1}", text, _newline);
 	}
 }
