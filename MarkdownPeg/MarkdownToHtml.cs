@@ -1,11 +1,5 @@
 ﻿namespace MarkdownPeg
 {
-	using System;
-	using System.Collections.Generic;
-	using System.Linq;
-	using System.Text;
-	using System.Threading.Tasks;
-
 	public class MarkdownToHtml : MarkdownParser
 	{
 		private string _newline;
@@ -24,5 +18,8 @@
 
 		protected override string Paragraph (long start, long end, string text) =>
 			string.Format ("<p>{0}</p>{1}", text, _newline);
+
+		protected override string SoftLineBreak (long start, long end, string text) => 
+			_newline;
 	}
 }
