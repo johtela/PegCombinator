@@ -52,6 +52,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TestBase.cs" />
     <Compile Include="AtxHeadings.cs" />
+    <Compile Include="ThematicBreaks.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

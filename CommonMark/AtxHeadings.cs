@@ -1,6 +1,5 @@
 ﻿namespace CommonMark
 {
-	using System;
 	using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 	[TestClass]

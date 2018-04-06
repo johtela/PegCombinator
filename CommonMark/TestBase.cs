@@ -5,14 +5,14 @@
 
 	public class TestBase
 	{
-		public MarkdownToHtml Parser;
+		public static MarkdownToHtml Parser;
 
-		public TestBase ()
+		static TestBase ()
 		{
 			Parser = new MarkdownToHtml ("\n");
 		}
 
-		protected void TestParse (string input, string output)
+		protected static void TestParse (string input, string output)
 		{
 			var parsed = Parser.Run (input);
 			Assert.AreEqual (output.Trim (), parsed.Trim ());

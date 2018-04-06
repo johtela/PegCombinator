@@ -1,5 +1,7 @@
 ﻿namespace MarkdownPeg
 {
+	using System;
+
 	public class MarkdownToHtml : MarkdownParser
 	{
 		private string _newline;
@@ -8,6 +10,11 @@
 		{
 			_newline = newline;
 		}
+
+		public MarkdownToHtml () : this (Environment.NewLine) { }
+
+		protected override string ThematicBreak (long start, long end, string text) => 
+			"<hr />" + _newline;
 
 		protected override string Heading (long start, long end, int headingLevel,
 			string headingText) => 

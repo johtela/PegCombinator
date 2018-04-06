@@ -25,9 +25,12 @@
 		protected virtual string Block (long start, long end,
 			string blockText) => blockText;
 
+		protected virtual string ThematicBreak (long start, long end,
+			string text) => text;
+
 		protected virtual string Heading (long start, long end,
 			int headingLevel, string headingText) =>
-			"#".Times (headingLevel) + " " + headingText;
+			"#".Times (headingLevel) + " " + headingText + Environment.NewLine;
 
 		protected virtual string Verbatim (long start, long end,
 			string verbatimText) => verbatimText;
@@ -118,6 +121,27 @@
 				 select Verbatim (startPos, endPos, chunks.SeparateWith ("")))
 				.Trace ("VerbatimBlock");
 			/*
+			### Thematic Breaks
+			*/
+			Parser<string, char> TB (char c) =>
+				from ch in SP.Char (c)
+				from rest in (
+					from si in OptionalSpace
+					from ci in SP.Char (c)
+					select si + new string (ci, 1))
+					.Occurrences (2, int.MaxValue)
+				select new string (ch, 1) + rest.ToString ("", "", "");
+
+			var ThemaBreak =
+				(from ni in NonindentSpace
+				 from startPos in Parser.Position<char> ()
+				 from rule in TB ('*').Or (TB ('-')).Or (TB ('_'))
+				 from endPos in Parser.Position<char> ()
+				 from sp in OptionalSpace
+				 from nl in SP.NewLine
+				 select ThematicBreak (startPos, endPos, rule + sp + nl))
+				.Trace ("ThemaBreak");
+			/*
 			### Inlines
 
 			#### Determination Rules
@@ -127,7 +151,7 @@
 			var AtxStart =
 				(from ni in NonindentSpace
 				 from cs in SP.Char ('#').Occurrences (1, 6)
-				 from sp in SP.SpacesOrTabs
+				 from ws in SP.WhiteSpace.And ()
 				 select cs.Count ())
 				.Trace ("AtxStart");
 
@@ -149,6 +173,7 @@
 				 from notgt in IsBlockQuote.Not ()
 				 from notatx in AtxStart.Not ()
 				 from notsetext in SetextUnderline.Not ()
+				 from notthmbrk in ThemaBreak.Not ()
 				 select true)
 				.Trace ("IsNormalLine");
 			/*
@@ -189,14 +214,14 @@
 				 select new string (sc, 1))
 				.Trace ("EscapedChar");
 			/*
-			#### Unformatted Words
+			#### Unformatted Text
 			*/
-			var Word =
+			var UnformattedText =
 				(from startPos in Parser.Position<char> ()
 				 from chars in NormalChar.OneOrMore ()
 				 from endPos in Parser.Position<char> ()
 				 select Text (startPos, endPos, chars.AsString ()))
-				.Trace ("Word");
+				.Trace ("UnformattedText");
 			/*
 			#### Space between Words
 			*/
@@ -213,7 +238,7 @@
 				LineBreak
 				.Or (SpaceBetweenWords)
 				.Or (EscapedChar)
-				.Or (Word)
+				.Or (UnformattedText)
 				.Trace ("Inline");
 
 			var Inlines =
@@ -226,14 +251,16 @@
 			#### ATX Headings
 			*/
 			var AtxEnd =
-				OptionalSpace
-				.Then (SP.Char ('#').ZeroOrMore ())
-				.Then (OptionalSpace)
-				.Optional ("")
+				(SP.SpacesOrTabs
+					.Then (SP.Char ('#').OneOrMore ())
+					.Then (OptionalSpace)
+					.Then (SP.NewLine))
+				.Or (OptionalSpace
+					.Then (SP.NewLine))
 				.Trace ("AtxEnd");
 
 			var AtxInline =
-				(from notAtEnd in AtxEnd.Then (SP.NewLine).Not ()
+				(from notAtEnd in AtxEnd.Not ()
 				 from inline in Inline
 				 select inline)
 				.Trace ("AtxInline");
@@ -241,12 +268,13 @@
 			var AtxHeading =
 				(from startPos in Parser.Position<char> ()
 				 from level in AtxStart
-				 from inlines in AtxInline.OneOrMore ()
+				 from inlines in AtxInline.ZeroOrMore ()
 				 from atxend in AtxEnd
-				 from nl in SP.NewLine
 				 from endPos in Parser.Position<char> ()
 				 select Heading (startPos, endPos, level,
-					 inlines.ToString ("", "", "")))
+					 inlines.IsEmpty () ? "" : 
+					 (inlines.First.All (char.IsWhiteSpace) ? 
+						inlines.Rest : inlines).ToString ("", "", "")))
 				.Trace ("AtxHeading");
 			/*
 			#### Setext Headings
@@ -299,6 +327,7 @@
 				 from block in VerbatimBlock
 					 .Or (AtxHeading)
 					 .Or (SetextHeading)
+					 .Or (ThemaBreak)
 					 .Or (Para)
 				 from endPos in Parser.Position<char> ()
 				 select Block (startPos, endPos, block))
