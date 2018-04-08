@@ -44,6 +44,9 @@
 		protected virtual string Space (long start, long end,
 			string text) => text;
 
+		protected virtual string Punctuation (long pos, char punctuation) => 
+			new string (punctuation, 1);
+
 		protected virtual string SoftLineBreak (long start, long end,
 			string text) => text;
 
@@ -59,12 +62,8 @@
 			/*
 			### Special and Normal Characters
 			*/
-			var SpecialChar =
-				SP.OneOf ('*', '_', '`', '&', '\\')
-				.Trace ("SpecialChar");
-
 			var NormalChar =
-				Parser.Not (SpecialChar.Or (SP.WhitespaceChar)).Then (SP.AnyChar)
+				Parser.Not (SP.Punctuation.Or (SP.WhitespaceChar)).Then (SP.AnyChar)
 				.Trace ("NormalChar");
 			/*
 			### Whitespace
@@ -232,12 +231,21 @@
 				 select Space (startPos, endPos, sp))
 				.Trace ("SpaceBetweenWords");
 			/*
+			#### Punctuation
+			*/
+			var Punct =
+				(from punc in SP.Punctuation
+				 from pos in Parser.Position<char> ()
+				 select Punctuation (pos, punc))
+				.Trace ("SpaceBetweenWords");
+			/*
 			#### Main Inline Selector
 			*/
 			var Inline =
 				LineBreak
 				.Or (SpaceBetweenWords)
 				.Or (EscapedChar)
+				.Or (Punct)
 				.Or (UnformattedText)
 				.Trace ("Inline");
 

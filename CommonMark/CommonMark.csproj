@@ -53,6 +53,7 @@
     <Compile Include="TestBase.cs" />
     <Compile Include="AtxHeadings.cs" />
     <Compile Include="ThematicBreaks.cs" />
+    <Compile Include="Emphasis.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

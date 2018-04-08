@@ -28,5 +28,16 @@
 
 		protected override string SoftLineBreak (long start, long end, string text) => 
 			_newline;
+
+		protected override string Punctuation (long pos, char punctuation)
+		{
+			switch (punctuation)
+			{
+				case '&': return "&amp;";
+				case '<': return "&lt;";
+				case '>': return "&gt;";
+				default: return base.Punctuation (pos, punctuation);
+			}
+		}
 	}
 }
