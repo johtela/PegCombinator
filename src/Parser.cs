@@ -230,24 +230,26 @@
             return parser.Or (defaultValue.ToParser<T, S> ());
         }
 
-        public static Parser<T, S> And<T, S> (this Parser<T, S> parser)
+        public static Parser<T, S> And<T, S> (this Parser<T, S> parser, int lookback = 0)
         {
             return Memoize<T, S> (input =>
             {
                 var pos = input.Position;
+				input.Position -= lookback;
                 var res = parser (input);
                 input.Position = pos;
                 return res;
             });
         }
 
-        public static Parser<T, S> Not<T, S> (this Parser<T, S> parser)
+        public static Parser<T, S> Not<T, S> (this Parser<T, S> parser, int lookback = 0)
         {
             return Memoize<T, S> (input =>
             {
                 var pos = input.Position;
+				input.Position -= lookback;
                 var res = parser (input);
-                input.Position = pos;
+				input.Position = pos;
                 if (res)
                 {
                     var found = res.Result.ToString ();
@@ -297,6 +299,11 @@
 					input.Current.ToString ().EscapeWhitespace (), input.Position);
 				return res;
 			};
+		}
+
+		public static Parser<T, S> ForwardRef<T, S> (this Ref<Parser<T, S>> parser)
+		{
+			return input => parser.Target (input);
 		}
 
         /// <summary>

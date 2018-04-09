@@ -27,13 +27,7 @@
 			public long Position
 			{
 				get => _position;
-				set
-				{
-					var i = (int)value;
-					if (i < -1 || i > _input.Length)
-						throw new IndexOutOfRangeException ();
-					_position = i;
-				}
+				set => _position = (int)value;
 			}
 
 			public char Current => 
@@ -67,17 +61,11 @@
 			public long Position
 			{
 				get => _position;
-				set
-				{
-					var i = (int)value;
-					if (i < -1 || i > _input.Length)
-						throw new IndexOutOfRangeException ();
-					_position = i;
-				}
+				set => _position = (int)value;
 			}
 
 			public S Current => 
-				_position< 0 || _position >= _input.Length? 
+				_position < 0 || _position >= _input.Length? 
 					default (S) :
 					_input[_position];
 

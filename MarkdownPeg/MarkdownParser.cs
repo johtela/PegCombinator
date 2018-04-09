@@ -52,6 +52,9 @@
 
 		protected virtual string HardLineBreak (long start, long end,
 			string text) => text;
+
+		protected virtual string Emphasis (long start, long end,
+			string text) => text;
 		/*
 		## Parsing Rules
 		*/
@@ -239,17 +242,45 @@
 				 select Punctuation (pos, punc))
 				.Trace ("SpaceBetweenWords");
 			/*
+			#### Emphasis
+			*/
+			var WSorPunct = SP.WhitespaceChar.Or (SP.Punctuation);
+
+			Parser<string, char> LeftFlankDelim (char emphChar, int cnt) =>
+				from check in (SP.Char (emphChar).Or (WSorPunct).And (lookback: 1))
+					.Or (SP.Char (emphChar).OneOrMore ().Then (WSorPunct.Not ()).And ())
+				from emph in SP.String (new string (emphChar, cnt))
+				select emph;
+
+			Parser<string, char> RightFlankDelim (char emphChar, int cnt) =>
+				from check in (SP.Char (emphChar).Or (WSorPunct.Not ()).And (lookback: 1))
+					.Or (SP.Char (emphChar).OneOrMore ().Then (WSorPunct).And ())
+				from emph in SP.String (new string (emphChar, cnt))
+				select emph;
+
+			var Inlines = new Ref<Parser<string, char>> ();
+
+			var Emph =
+				from lfd in LeftFlankDelim ('*', 1)
+				from startPos in Parser.Position<char> ()
+				from ils in Inlines.ForwardRef ()
+				from endPos in Parser.Position<char> ()
+				from rfd in RightFlankDelim ('*', 1)
+				select Emphasis (startPos, endPos, ils);
+
+			/*
 			#### Main Inline Selector
 			*/
 			var Inline =
 				LineBreak
+				.Or (Emph)
 				.Or (SpaceBetweenWords)
 				.Or (EscapedChar)
 				.Or (Punct)
 				.Or (UnformattedText)
 				.Trace ("Inline");
 
-			var Inlines =
+			Inlines.Target =
 				(from il in Inline.OneOrMore ()
 				 select il.ToString ("", "", ""))
 				.Trace ("Inlines"); ;
@@ -323,7 +354,7 @@
 			var Para =
 				(from ni in NonindentSpace
 				 from startPos in Parser.Position<char> ()
-				 from inlines in Inlines
+				 from inlines in Inlines.Target
 				 from endPos in Parser.Position<char> ()
 				 select Paragraph (startPos, endPos, inlines))
 				.Trace ("Para");
