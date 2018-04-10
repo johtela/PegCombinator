@@ -39,5 +39,11 @@
 				default: return base.Punctuation (pos, punctuation);
 			}
 		}
+
+		protected override string Emphasis (long start, long end, string text) => 
+			string.Format ("<em>{0}</em>", text);
+
+		protected override string StrongEmphasis (long start, long end, string text) =>
+			string.Format ("<strong>{0}</strong>", text);
 	}
 }

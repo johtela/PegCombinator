@@ -39,6 +39,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="src\Ref.cs" />
+    <Compile Include="src\RingBuffer.cs" />
     <Compile Include="src\SequenceParsers.cs" />
     <Compile Include="src\ParseError.cs" />
     <Compile Include="src\Parser.cs" />

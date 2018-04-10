@@ -55,12 +55,16 @@
 
 		protected virtual string Emphasis (long start, long end,
 			string text) => text;
+
+		protected virtual string StrongEmphasis (long start, long end,
+			string text) => text;
+
 		/*
 		## Parsing Rules
 		*/
 		private Parser<string, char> Doc ()
 		{
-			Parser.Debugging = false;
+			Parser.Debugging = true;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -240,48 +244,65 @@
 				(from punc in SP.Punctuation
 				 from pos in Parser.Position<char> ()
 				 select Punctuation (pos, punc))
-				.Trace ("SpaceBetweenWords");
+				.Trace ("Punct");
 			/*
 			#### Emphasis
 			*/
 			var WSorPunct = SP.WhitespaceChar.Or (SP.Punctuation);
 
 			Parser<string, char> LeftFlankDelim (char emphChar, int cnt) =>
-				from check in (SP.Char (emphChar).Or (WSorPunct).And (lookback: 1))
-					.Or (SP.Char (emphChar).OneOrMore ().Then (WSorPunct.Not ()).And ())
-				from emph in SP.String (new string (emphChar, cnt))
-				select emph;
+				(from a in SP.Char (emphChar).OneOrMore ().Then (SP.WhitespaceChar).Not ()
+				 from b in SP.Char (emphChar).OneOrMore ().Then (SP.Punctuation).Not ()
+					.Or (WSorPunct.And (lookback: 1))
+				 from emph in SP.String (new string (emphChar, cnt))
+				 select emph)
+				.Trace ("LeftFlankDelim " + new string (emphChar, cnt));
 
 			Parser<string, char> RightFlankDelim (char emphChar, int cnt) =>
-				from check in (SP.Char (emphChar).Or (WSorPunct.Not ()).And (lookback: 1))
+				(from check in (SP.Char (emphChar).Or (WSorPunct.Not ()).And (lookback: 1))
 					.Or (SP.Char (emphChar).OneOrMore ().Then (WSorPunct).And ())
-				from emph in SP.String (new string (emphChar, cnt))
-				select emph;
+				 from emph in SP.String (new string (emphChar, cnt))
+				 select emph)
+				.Trace ("RightFlankDelim " + new string (emphChar, cnt));
 
-			var Inlines = new Ref<Parser<string, char>> ();
+			var Inline = new Ref<Parser<string, char>> ();
 
-			var Emph =
-				from lfd in LeftFlankDelim ('*', 1)
-				from startPos in Parser.Position<char> ()
-				from ils in Inlines.ForwardRef ()
-				from endPos in Parser.Position<char> ()
-				from rfd in RightFlankDelim ('*', 1)
-				select Emphasis (startPos, endPos, ils);
+			Parser<string, char> EmphInlines (char emphChar) =>
+				(from il in SP.Char (emphChar).Not ()
+					.Then (Inline.ForwardRef ()).OneOrMore ()
+				 select il.ToString ("", "", ""))
+				.Trace ("EmphInlines");
 
+			Parser<string, char> Emph (char emphChar, int cnt,
+				Func<long, long, string, string> transform) =>
+				(from lfd in LeftFlankDelim (emphChar, cnt)
+				 from startPos in Parser.Position<char> ()
+				 from ils in EmphInlines (emphChar)
+				 from endPos in Parser.Position<char> ()
+				 from rfd in RightFlankDelim (emphChar, cnt)
+				 select transform (startPos, endPos, ils))
+				.Trace ("Emphasis " + new string (emphChar, cnt));
+
+			var Emphasized =
+				Emph ('*', 2, StrongEmphasis)
+				.Or (Emph ('_', 2, StrongEmphasis))
+				.Or (Emph ('*', 1, Emphasis))
+				.Or (Emph ('_', 1, Emphasis))
+				.Trace ("Emphasized");
 			/*
 			#### Main Inline Selector
 			*/
-			var Inline =
+			Inline.Target =
 				LineBreak
-				.Or (Emph)
+				.Or (Emphasized)
 				.Or (SpaceBetweenWords)
 				.Or (EscapedChar)
 				.Or (Punct)
 				.Or (UnformattedText)
 				.Trace ("Inline");
 
-			Inlines.Target =
-				(from il in Inline.OneOrMore ()
+			var Inlines =
+				(from il in Inline.Target.OneOrMore ()
 				 select il.ToString ("", "", ""))
 				.Trace ("Inlines"); ;
 			/*
@@ -300,7 +321,7 @@
 
 			var AtxInline =
 				(from notAtEnd in AtxEnd.Not ()
-				 from inline in Inline
+				 from inline in Inline.Target
 				 select inline)
 				.Trace ("AtxInline");
 
@@ -320,7 +341,7 @@
 			*/
 			var SetextInline =
 				(from notAtEnd in EndLine.Not ()
-				 from inline in Inline
+				 from inline in Inline.Target
 				 select inline)
 				.Trace ("SetextInline");
 
@@ -354,7 +375,7 @@
 			var Para =
 				(from ni in NonindentSpace
 				 from startPos in Parser.Position<char> ()
-				 from inlines in Inlines.Target
+				 from inlines in Inlines
 				 from endPos in Parser.Position<char> ()
 				 select Paragraph (startPos, endPos, inlines))
 				.Trace ("Para");
