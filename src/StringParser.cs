@@ -48,6 +48,9 @@
 		public static readonly Parser<char, char> Punctuation =
 			Parser.Satisfy<char> (char.IsPunctuation).Expect ("punctuation");
 
+		public static readonly Parser<char, char> NotPunctuation =
+			Parser.Satisfy<char> (c => !char.IsPunctuation (c)).Expect ("not punctuation");
+
 		/// <summary>
 		/// Parse on alphanumeric character.
 		/// </summary>

@@ -230,24 +230,22 @@
             return parser.Or (defaultValue.ToParser<T, S> ());
         }
 
-        public static Parser<T, S> And<T, S> (this Parser<T, S> parser, int lookback = 0)
+        public static Parser<T, S> And<T, S> (this Parser<T, S> parser)
         {
             return Memoize<T, S> (input =>
             {
                 var pos = input.Position;
-				input.Position -= lookback;
                 var res = parser (input);
                 input.Position = pos;
                 return res;
             });
         }
 
-        public static Parser<T, S> Not<T, S> (this Parser<T, S> parser, int lookback = 0)
+        public static Parser<T, S> Not<T, S> (this Parser<T, S> parser)
         {
             return Memoize<T, S> (input =>
             {
                 var pos = input.Position;
-				input.Position -= lookback;
                 var res = parser (input);
 				input.Position = pos;
                 if (res)
@@ -259,6 +257,19 @@
             });
         }
 
+		public static Parser<T, S> LookBack<T, S> (this Parser<T, S> parser)
+		{
+			return Memoize<T, S> (input =>
+			{
+				var pos = input.Position;
+				input.Direction = ParseDirection.Backward;
+				var res = parser (input);
+				input.Direction = ParseDirection.Forward;
+				input.Position = pos;
+				return res;
+			});
+		}
+
 		public static Parser<long, S> Position<S> ()
 		{
 			return input => ParseResult<long>.Succeeded (input.Position, input.Position);
@@ -268,12 +279,14 @@
 		{
 			if (!UseMemoization)
 				return parser;
+			IParserInput<S> lastInput = null;
 			ParseResult<T> lastResult = null;
 			long lastPos = long.MinValue;
 			return input =>
 			{
 				var pos = input.Position;
-				if (pos == lastPos && lastResult != null)
+				if (input == lastInput && pos == lastPos && 
+					lastResult != null)
 					return lastResult;
 				lastPos = pos;
 				lastResult = parser (input);

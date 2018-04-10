@@ -6,9 +6,12 @@
 	using System.IO;
 	using System.Runtime.InteropServices;
 
+	public enum ParseDirection { Forward =  1, Backward = -1 }
+
 	public interface IParserInput<S> : IEnumerator<S>
     {
         long Position { get; set; }
+		ParseDirection Direction { get; set; }
     }
 
 	public static class ParserInput
@@ -30,6 +33,8 @@
 				set => _position = (int)value;
 			}
 
+			public ParseDirection Direction { get; set; }
+
 			public char Current => 
 				_position < 0 || _position >= _input.Length  ? 
 					'\0' :
@@ -39,12 +44,23 @@
 
 			public void Dispose () { }
 
-			public bool MoveNext () => 
-				_position < _input.Length ?
-					++_position < _input.Length :
-					false;
+			public bool MoveNext ()
+			{
+				var len = _input.Length;
+				_position += (int)Direction;
+				if (_position < -1 || _position >= len)
+				{
+					_position = Math.Max (-1, Math.Min (len, _position));
+					return false;
+				}
+				return true;
+			}
 
-			public void Reset () => _position = -1;
+			public void Reset ()
+			{
+				_position = -1;
+				Direction = ParseDirection.Forward;
+			}
 		}
 
 		private class ArrayInput<S> : IParserInput<S>
@@ -64,6 +80,8 @@
 				set => _position = (int)value;
 			}
 
+			public ParseDirection Direction { get; set; }
+
 			public S Current => 
 				_position < 0 || _position >= _input.Length? 
 					default (S) :
@@ -73,15 +91,26 @@
 
 			public void Dispose () { }
 
-			public bool MoveNext () =>
-				_position < _input.Length ?
-					++_position < _input.Length :
-					false;
+			public bool MoveNext ()
+			{
+				var len = _input.Length;
+				_position += (int)Direction;
+				if (_position < -1 || _position >= len)
+				{
+					_position = Math.Max (-1, Math.Min (len, _position));
+					return false;
+				}
+				return true;
+			}
 
-			public void Reset () => _position = -1;
-		}
+			public void Reset ()
+			{
+				_position = -1;
+				Direction = ParseDirection.Forward;
+			}
+	}
 
-		private class StreamInput<S> : IParserInput<S>
+	private class StreamInput<S> : IParserInput<S>
 		{
 			private Stream _input;
 			private S _current;
@@ -89,6 +118,7 @@
 			public StreamInput (Stream input)
 			{
 				_input = input;
+				Direction = ParseDirection.Forward;
 			}
 
 			public long Position
@@ -96,6 +126,8 @@
 				get => _input.Position;
 				set => _input.Position = value;
 			}
+
+			public ParseDirection Direction { get; set; }
 
 			public S Current => _current;
 
@@ -106,6 +138,8 @@
 			public bool MoveNext ()
 			{
 				var size = Marshal.SizeOf<S> ();
+				if (Direction == ParseDirection.Backward)
+					_input.Seek (size * -2, SeekOrigin.Current);
 				var buffer = new byte[size];
 				var read = _input.Read (buffer, 0, size);
 				if (read < size)
@@ -115,7 +149,11 @@
 				return true;
 			}
 
-			public void Reset () => _input.Seek (0, SeekOrigin.Begin);
+			public void Reset ()
+			{
+				_input.Seek (0, SeekOrigin.Begin);
+				Direction = ParseDirection.Forward;
+			}
 		}
 
 		private class Terminator<S> : IParserInput<S>
@@ -139,6 +177,12 @@
 				set => _input.Position = value;
 			}
 
+			public ParseDirection Direction
+			{
+				get => _input.Direction;
+				set => _input.Direction = value;
+			}
+
 			public S Current => 
 				AtEnd () ? 
 					_terminator : 
@@ -150,6 +194,8 @@
 
 			public bool MoveNext ()
 			{
+				if (Direction == ParseDirection.Backward)
+					return _input.MoveNext ();
 				if (AtEnd ())
 					return false;
 				if (!_input.MoveNext ())

@@ -64,7 +64,7 @@
 		*/
 		private Parser<string, char> Doc ()
 		{
-			Parser.Debugging = true;
+			Parser.Debugging = false;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -250,38 +250,46 @@
 			*/
 			var WSorPunct = SP.WhitespaceChar.Or (SP.Punctuation);
 
-			Parser<string, char> LeftFlankDelim (char emphChar, int cnt) =>
-				(from a in SP.Char (emphChar).OneOrMore ().Then (SP.WhitespaceChar).Not ()
-				 from b in SP.Char (emphChar).OneOrMore ().Then (SP.Punctuation).Not ()
-					.Or (WSorPunct.And (lookback: 1))
-				 from emph in SP.String (new string (emphChar, cnt))
-				 select emph)
-				.Trace ("LeftFlankDelim " + new string (emphChar, cnt));
+			Parser<string, char> LeftFlankDelim (char delim, int cnt)
+			{
+				var skipDelim = SP.Char (delim).ZeroOrMore ();
+				return
+					(from emph in SP.String (new string (delim, cnt))
+					 from a in skipDelim.Then (SP.WhitespaceChar).Not ()
+					 from b in skipDelim.Then (SP.Punctuation).Not ()
+						.Or (skipDelim.Then (WSorPunct).LookBack ())
+					 select emph)
+					.Trace ("LeftFlankDelim " + new string (delim, cnt));
+			}
 
-			Parser<string, char> RightFlankDelim (char emphChar, int cnt) =>
-				(from check in (SP.Char (emphChar).Or (WSorPunct.Not ()).And (lookback: 1))
-					.Or (SP.Char (emphChar).OneOrMore ().Then (WSorPunct).And ())
-				 from emph in SP.String (new string (emphChar, cnt))
-				 select emph)
-				.Trace ("RightFlankDelim " + new string (emphChar, cnt));
-
+			Parser<string, char> RightFlankDelim (char delim, int cnt)
+			{
+				var skipDelim = SP.Char (delim).ZeroOrMore ();
+				return
+					(from emph in SP.String (new string (delim, cnt))
+					 from a in skipDelim.Then (SP.NonWhitespaceChar).LookBack ()
+					 from b in skipDelim.Then (SP.NotPunctuation).LookBack ()
+						.Or (skipDelim.Then (WSorPunct).And ())
+					 select emph)
+					.Trace ("RightFlankDelim " + new string (delim, cnt));
+			}
 			var Inline = new Ref<Parser<string, char>> ();
 
-			Parser<string, char> EmphInlines (char emphChar) =>
-				(from il in SP.Char (emphChar).Not ()
+			Parser<string, char> EmphInlines (char delim) =>
+				(from il in SP.Char (delim).Not ()
 					.Then (Inline.ForwardRef ()).OneOrMore ()
 				 select il.ToString ("", "", ""))
 				.Trace ("EmphInlines");
 
-			Parser<string, char> Emph (char emphChar, int cnt,
+			Parser<string, char> Emph (char delim, int cnt,
 				Func<long, long, string, string> transform) =>
-				(from lfd in LeftFlankDelim (emphChar, cnt)
+				(from lfd in LeftFlankDelim (delim, cnt)
 				 from startPos in Parser.Position<char> ()
-				 from ils in EmphInlines (emphChar)
+				 from ils in EmphInlines (delim)
 				 from endPos in Parser.Position<char> ()
-				 from rfd in RightFlankDelim (emphChar, cnt)
+				 from rfd in RightFlankDelim (delim, cnt)
 				 select transform (startPos, endPos, ils))
-				.Trace ("Emphasis " + new string (emphChar, cnt));
+				.Trace ("Emphasis " + new string (delim, cnt));
 
 			var Emphasized =
 				Emph ('*', 2, StrongEmphasis)
