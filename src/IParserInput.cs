@@ -6,13 +6,13 @@
 	using System.IO;
 	using System.Runtime.InteropServices;
 
-	public enum ParseDirection { Forward =  1, Backward = -1 }
+	public enum ParseDirection { Forward = 1, Backward = -1 }
 
 	public interface IParserInput<S> : IEnumerator<S>
-    {
-        long Position { get; set; }
+	{
+		long Position { get; set; }
 		ParseDirection Direction { get; set; }
-    }
+	}
 
 	public static class ParserInput
 	{
@@ -35,8 +35,8 @@
 
 			public ParseDirection Direction { get; set; }
 
-			public char Current => 
-				_position < 0 || _position >= _input.Length  ? 
+			public char Current =>
+				_position < 0 || _position >= _input.Length ?
 					'\0' :
 					_input[_position];
 
@@ -82,8 +82,8 @@
 
 			public ParseDirection Direction { get; set; }
 
-			public S Current => 
-				_position < 0 || _position >= _input.Length? 
+			public S Current =>
+				_position < 0 || _position >= _input.Length ?
 					default (S) :
 					_input[_position];
 
@@ -108,9 +108,9 @@
 				_position = -1;
 				Direction = ParseDirection.Forward;
 			}
-	}
+		}
 
-	private class StreamInput<S> : IParserInput<S>
+		private class StreamInput<S> : IParserInput<S>
 		{
 			private Stream _input;
 			private S _current;
@@ -183,9 +183,9 @@
 				set => _input.Direction = value;
 			}
 
-			public S Current => 
-				AtEnd () ? 
-					_terminator : 
+			public S Current =>
+				AtEnd () ?
+					_terminator :
 					_input.Current;
 
 			object IEnumerator.Current => Current;
@@ -206,17 +206,17 @@
 			public void Reset () => _input.Reset ();
 		}
 
-		public static IParserInput<char> String (string input) => 
+		public static IParserInput<char> String (string input) =>
 			new StringInput (input);
 
-		public static IParserInput<S> Array<S> (S[] input) => 
+		public static IParserInput<S> Array<S> (S[] input) =>
 			new ArrayInput<S> (input);
 
-		public static IParserInput<S> Stream<S> (Stream input) => 
+		public static IParserInput<S> Stream<S> (Stream input) =>
 			new StreamInput<S> (input);
 
 		public static IParserInput<S> TerminateWith<S> (this IParserInput<S> input,
-			S terminator) => 
+			S terminator) =>
 			new Terminator<S> (input, terminator);
 	}
 }
