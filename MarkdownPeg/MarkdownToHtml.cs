@@ -36,6 +36,7 @@
 				case '&': return "&amp;";
 				case '<': return "&lt;";
 				case '>': return "&gt;";
+				case '"': return "&quot;";
 				default: return base.Punctuation (pos, punctuation);
 			}
 		}
