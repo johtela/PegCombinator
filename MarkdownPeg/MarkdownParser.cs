@@ -250,7 +250,7 @@
 			*/
 			var WS = Parser.Satisfy<char> (c => char.IsWhiteSpace (c) || c == '\0');
 			var NonWS = Parser.Satisfy<char> (c => !char.IsWhiteSpace (c) && c != '\0');
-			var WSorPunct = SP.WhitespaceChar.Or (SP.Punctuation).Or (SP.Char ('\0'));
+			var WSorPunct = WS.Or (SP.Punctuation);
 
 			Parser<char, char> DelimFollowedBy (char delim, Parser<char, char> p) =>
 				SP.Char (delim).ZeroOrMore ().Then (p);
@@ -263,20 +263,29 @@
 				 from b in DelimFollowedBy (delim, SP.Punctuation).Not ()
 					.Or (DelimPrecededBy (delim, WSorPunct))
 				 select b)
-				.Trace ("LeftFlankDelim " + new string (delim, 1));
+				.Trace ("LeftFlankDelimRun " + new string (delim, 1));
 
 			Parser<char, char> RightFlankDelimRun (char delim) =>
 				(from a in DelimPrecededBy (delim, NonWS)
 				 from b in DelimPrecededBy (delim, SP.NotPunctuation)
 					.Or (DelimFollowedBy (delim, WSorPunct).And ())
 				 select b)
-				.Trace ("RightFlankDelim " + new string (delim, 1));
+				.Trace ("RightFlankDelimRun " + new string (delim, 1));
 
 			var Inline = new Ref<Parser<string, char>> ();
 
-			Parser<string, char> EmphInlines (char delim) =>
-				(from il in SP.Char (delim).Not ()
-					.Then (Inline.ForwardRef ()).OneOrMore ()
+			var AsteriskEmphEnd = RightFlankDelimRun ('*');
+
+			var UnderscoreEmphEnd =
+				from rfd in RightFlankDelimRun ('_')
+				from notlfd in LeftFlankDelimRun ('_').Not ()
+				   .Or (DelimFollowedBy ('_', SP.Punctuation).And ())
+				select rfd;
+
+			Parser<string, char> EmphInlines (string delim, Parser<char, char> terminator) =>
+				(from il in SP.String (delim).Then (terminator).Not ()
+					.Then (Inline.ForwardRef ())
+					.OneOrMore ()
 				 select il.ToString ("", "", ""))
 				.Trace ("EmphInlines");
 
@@ -284,38 +293,36 @@
 				Func<long, long, string, string> transform)
 			{
 				var delim = new string ('*', cnt);
-				var parseDelim = SP.String (delim);
+				var emphDelim = SP.String (delim).Trace ("EmphDelim " + delim);
 				return
-					(from od in parseDelim
+					(from od in emphDelim
 					 from lfd in LeftFlankDelimRun ('*')
 					 from startPos in Parser.Position<char> ()
-					 from ils in EmphInlines ('*')
+					 from ils in EmphInlines (delim, AsteriskEmphEnd)
 					 from endPos in Parser.Position<char> ()
-					 from cd in parseDelim
-					 from rfd in RightFlankDelimRun ('*')
+					 from cd in emphDelim
+					 from end in AsteriskEmphEnd
 					 select transform (startPos, endPos, ils))
-					.Trace ("Emphasis " + delim);
+					.Trace ("AsteriskEmph");
 			}
 
 			Parser<string, char> UnderscoreEmph (int cnt,
 				Func<long, long, string, string> transform)
 			{
 				var delim = new string ('_', cnt);
-				var parseDelim = SP.String (delim);
+				var emphDelim = SP.String (delim).Trace ("EmphDelim " + delim);
 				return
-					(from od in parseDelim
+					(from od in emphDelim
 					 from lfd in LeftFlankDelimRun ('_')
 					 from notrfd in RightFlankDelimRun ('_').Not ()
 						.Or (DelimPrecededBy ('_', SP.Punctuation))
 					 from startPos in Parser.Position<char> ()
-					 from ils in EmphInlines ('_')
+					 from ils in EmphInlines (delim, UnderscoreEmphEnd)
 					 from endPos in Parser.Position<char> ()
-					 from cd in parseDelim
-					 from rfd in RightFlankDelimRun ('_')
-					 from notlfd in LeftFlankDelimRun ('_').Not ()
-						.Or (DelimFollowedBy ('_', SP.Punctuation).And ())
+					 from cd in emphDelim
+					 from end in UnderscoreEmphEnd
 					 select transform (startPos, endPos, ils))
-					.Trace ("Emphasis " + delim);
+					.Trace ("UnderscoreEmph");
 			}
 
 			var Emphasized =
