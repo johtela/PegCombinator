@@ -252,24 +252,36 @@
 			var NonWS = Parser.Satisfy<char> (c => !char.IsWhiteSpace (c) && c != '\0');
 			var WSorPunct = WS.Or (SP.Punctuation);
 
-			Parser<char, char> DelimFollowedBy (char delim, Parser<char, char> p) =>
-				SP.Char (delim).ZeroOrMore ().Then (p);
+			Parser<long, char> DelimFollowedBy (char delim, 
+				Parser<char, char> parser) =>
+				(from skip in SP.Char (delim).ZeroOrMore ()
+				 from p in Parser.Position<char> ()
+				 from c in parser
+				 select p)
+				.And ();
 
-			Parser <char, char> DelimPrecededBy (char delim, Parser<char, char> p) =>
-				SP.Char (delim).ZeroOrMore ().Then (p).LookBack ();
+			Parser<long, char> DelimPrecededBy (char delim,
+				Parser<char, char> parser) =>
+				(from skip in SP.Char (delim).ZeroOrMore ()
+				 from p in Parser.Position<char> ()
+				 from c in parser
+				 select p)
+				.LookBack ();
 
-			Parser<char, char> LeftFlankDelimRun (char delim) =>
-				(from a in DelimFollowedBy (delim, WS).Not ()
-				 from b in DelimFollowedBy (delim, SP.Punctuation).Not ()
+			Parser<int, char> LeftFlankDelimRun (char delim) =>
+				(from f in DelimFollowedBy (delim, NonWS)
+				 from a in DelimFollowedBy (delim, SP.NotPunctuation)
 					.Or (DelimPrecededBy (delim, WSorPunct))
-				 select b)
+				 from p in DelimPrecededBy (delim, SP.AnyChar)
+				 select (int)(f - p) + 1)
 				.Trace ("LeftFlankDelimRun " + new string (delim, 1));
 
-			Parser<char, char> RightFlankDelimRun (char delim) =>
-				(from a in DelimPrecededBy (delim, NonWS)
-				 from b in DelimPrecededBy (delim, SP.NotPunctuation)
-					.Or (DelimFollowedBy (delim, WSorPunct).And ())
-				 select b)
+			Parser<int, char> RightFlankDelimRun (char delim) =>
+				(from p in DelimPrecededBy (delim, NonWS)
+				 from a in DelimPrecededBy (delim, SP.NotPunctuation)
+					.Or (DelimFollowedBy (delim, WSorPunct))
+				 from f in DelimFollowedBy (delim, SP.AnyChar)
+				 select (int)(f - p) + 1)
 				.Trace ("RightFlankDelimRun " + new string (delim, 1));
 
 			var Inline = new Ref<Parser<string, char>> ();
@@ -279,11 +291,19 @@
 			var UnderscoreEmphEnd =
 				from rfd in RightFlankDelimRun ('_')
 				from notlfd in LeftFlankDelimRun ('_').Not ()
-				   .Or (DelimFollowedBy ('_', SP.Punctuation).And ())
+				   .Or (DelimFollowedBy ('_', SP.Punctuation).Select (_ => 0))
 				select rfd;
 
-			Parser<string, char> EmphInlines (string delim, Parser<char, char> terminator) =>
-				(from il in SP.String (delim).Then (terminator).Not ()
+			Parser<int, char> ClosingDelim (string delim, int lfd,
+				Parser<int, char> terminator) =>
+				from d in SP.String (delim)
+				from cfd in terminator
+				//where (lfd + cfd) % 3 != 0
+				select cfd;
+
+			Parser<string, char> EmphInlines (string delim, int lfd,
+				Parser<int, char> terminator) =>
+				(from il in ClosingDelim (delim, lfd, terminator).Not ()
 					.Then (Inline.ForwardRef ())
 					.OneOrMore ()
 				 select il.ToString ("", "", ""))
@@ -298,10 +318,10 @@
 					(from od in emphDelim
 					 from lfd in LeftFlankDelimRun ('*')
 					 from startPos in Parser.Position<char> ()
-					 from ils in EmphInlines (delim, AsteriskEmphEnd)
+					 from ils in EmphInlines (delim, lfd, AsteriskEmphEnd)
 					 from endPos in Parser.Position<char> ()
 					 from cd in emphDelim
-					 from end in AsteriskEmphEnd
+					 from rfd in AsteriskEmphEnd
 					 select transform (startPos, endPos, ils))
 					.Trace ("AsteriskEmph");
 			}
@@ -315,12 +335,12 @@
 					(from od in emphDelim
 					 from lfd in LeftFlankDelimRun ('_')
 					 from notrfd in RightFlankDelimRun ('_').Not ()
-						.Or (DelimPrecededBy ('_', SP.Punctuation))
+						.Or (DelimPrecededBy ('_', SP.Punctuation).Select (_ => 0))
 					 from startPos in Parser.Position<char> ()
-					 from ils in EmphInlines (delim, UnderscoreEmphEnd)
+					 from ils in EmphInlines (delim, lfd, UnderscoreEmphEnd)
 					 from endPos in Parser.Position<char> ()
 					 from cd in emphDelim
-					 from end in UnderscoreEmphEnd
+					 from rfd in UnderscoreEmphEnd
 					 select transform (startPos, endPos, ils))
 					.Trace ("UnderscoreEmph");
 			}

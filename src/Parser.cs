@@ -167,6 +167,15 @@
             return parser.Bind (x => project (x).Bind (y => select (x, y).ToParser<V, S> ()));
         }
 
+		public static Parser<T, S> Where<T, S> (this Parser<T, S> parser, 
+			Func<T, bool> predicate)
+		{
+			return parser.Bind (x =>
+				predicate (x) ?
+					x.ToParser<T, S> () :
+					Fail<T, S> (x.ToString (), "predicate"));
+		}
+
         /// <summary>
         /// Creates a parser that will run a given parser zero or more times. The results
         /// of the input parser are added to a list.
