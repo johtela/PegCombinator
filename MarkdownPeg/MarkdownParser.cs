@@ -298,7 +298,8 @@
 				Parser<int, char> terminator) =>
 				from d in SP.String (delim)
 				from cfd in terminator
-				//where (lfd + cfd) % 3 != 0
+				from canopen in LeftFlankDelimRun (delim[0]).OptionalVal ()
+				where !canopen.HasValue || (lfd + cfd) % 3 != 0
 				select cfd;
 
 			Parser<string, char> EmphInlines (string delim, int lfd,
