@@ -616,5 +616,158 @@
 			"_foo__", 
 			"<p><em>foo</em>_</p>");
 
+		/* [Example 433](http://spec.commonmark.org/0.28/#example-433) */
+		[TestMethod]
+		public void Example433 () => TestParse (
+			"___foo__", 
+			"<p>_<strong>foo</strong></p>");
+
+		/* [Example 434](http://spec.commonmark.org/0.28/#example-434) */
+		[TestMethod]
+		public void Example434 () => TestParse (
+			"____foo_", 
+			"<p>___<em>foo</em></p>");
+
+		/* [Example 435](http://spec.commonmark.org/0.28/#example-435) */
+		[TestMethod]
+		public void Example435 () => TestParse (
+			"__foo___", 
+			"<p><strong>foo</strong>_</p>");
+
+		/* [Example 436](http://spec.commonmark.org/0.28/#example-436) */
+		[TestMethod]
+		public void Example436 () => TestParse (
+			"_foo____", 
+			"<p><em>foo</em>___</p>");
+
+		/* [Example 437](http://spec.commonmark.org/0.28/#example-437) */
+		[TestMethod]
+		public void Example437 () => TestParse (
+			"**foo**", "<p><strong>foo</strong></p>");
+
+		/* [Example 438](http://spec.commonmark.org/0.28/#example-438) */
+		[TestMethod]
+		public void Example438 () => TestParse (
+			"*_foo_*", 
+			"<p><em><em>foo</em></em></p>");
+
+		/* [Example 439](http://spec.commonmark.org/0.28/#example-439) */
+		[TestMethod]
+		public void Example439 () => TestParse (
+			"__foo__", 
+			"<p><strong>foo</strong></p>");
+
+		/* [Example 440](http://spec.commonmark.org/0.28/#example-440) */
+		[TestMethod]
+		public void Example440 () => TestParse (
+			"_*foo*_", 
+			"<p><em><em>foo</em></em></p>");
+
+		/* [Example 441](http://spec.commonmark.org/0.28/#example-441) */
+		[TestMethod]
+		public void Example441 () => TestParse (
+			"****foo****", 
+			"<p><strong><strong>foo</strong></strong></p>");
+
+		/* [Example 442](http://spec.commonmark.org/0.28/#example-442) */
+		[TestMethod]
+		public void Example442 () => TestParse (
+			"____foo____", 
+			"<p><strong><strong>foo</strong></strong></p>");
+
+		/* [Example 443](http://spec.commonmark.org/0.28/#example-443) */
+		[TestMethod]
+		public void Example443 () => TestParse (
+			"******foo******", 
+			"<p><strong><strong><strong>foo</strong></strong></strong></p>");
+
+		/* [Example 444](http://spec.commonmark.org/0.28/#example-444) */
+		[TestMethod]
+		public void Example444 () => TestParse (
+			"***foo***", 
+			"<p><em><strong>foo</strong></em></p>");
+
+		/* [Example 445](http://spec.commonmark.org/0.28/#example-445) */
+		[TestMethod]
+		public void Example445 () => TestParse (
+			"_____foo_____", 
+			"<p><em><strong><strong>foo</strong></strong></em></p>");
+
+		/* [Example 446](http://spec.commonmark.org/0.28/#example-446) */
+		[TestMethod]
+		public void Example446 () => TestParse (
+			"*foo _bar* baz_", 
+			"<p><em>foo _bar</em> baz_</p>");
+
+		/* [Example 447](http://spec.commonmark.org/0.28/#example-447) */
+		[TestMethod]
+		public void Example447 () => TestParse (
+			"*foo __bar *baz bim__ bam*", 
+			"<p><em>foo <strong>bar *baz bim</strong> bam</em></p>");
+
+		/* [Example 448](http://spec.commonmark.org/0.28/#example-448) */
+		[TestMethod]
+		public void Example448 () => TestParse (
+			"**foo **bar baz**", 
+			"<p>**foo <strong>bar baz</strong></p>");
+
+		/* [Example 449](http://spec.commonmark.org/0.28/#example-449) */
+		[TestMethod]
+		public void Example449 () => TestParse (
+			"*foo *bar baz*", 
+			"<p>*foo <em>bar baz</em></p>");
+
+		/* [Example 450](http://spec.commonmark.org/0.28/#example-450) */
+		[TestMethod]
+		public void Example450 () => TestParse (
+			"*[bar*](/url)", 
+			"<p>*<a href=\"/url\">bar*</a></p>");
+
+		/* [Example 451](http://spec.commonmark.org/0.28/#example-451) */
+		[TestMethod]
+		public void Example451 () => TestParse (
+			"_foo [bar_](/url)", "<p>_foo <a href=\"/url\">bar_</a></p>");
+
+		/* [Example 452](http://spec.commonmark.org/0.28/#example-452) */
+		[TestMethod]
+		public void Example452 () => TestParse (
+			"*<img src=\"foo\" title=\"*\"/>", 
+			"<p>*<img src=\"foo\" title=\"*\"/></p>");
+
+		/* [Example 453](http://spec.commonmark.org/0.28/#example-453) */
+		[TestMethod]
+		public void Example453 () => TestParse (
+			"**<a href=\"**\">", 
+			"<p>**<a href=\"**\"></p>");
+
+		/* [Example 454](http://spec.commonmark.org/0.28/#example-454) */
+		[TestMethod]
+		public void Example454 () => TestParse (
+			"__<a href=\"__\">", 
+			"<p>__<a href=\"__\"></p>");
+
+		/* [Example 455](http://spec.commonmark.org/0.28/#example-455) */
+		[TestMethod]
+		public void Example455 () => TestParse (
+			"*a `*`*", 
+			"<p><em>a <code>*</code></em></p>");
+
+		/* [Example 456](http://spec.commonmark.org/0.28/#example-456) */
+		[TestMethod]
+		public void Example456 () => TestParse (
+			"_a `_`_", 
+			"<p><em>a <code>_</code></em></p>");
+
+		/* [Example 457](http://spec.commonmark.org/0.28/#example-457) */
+		[TestMethod]
+		public void Example457 () => TestParse (
+			"**a<http://foo.bar/?q=**>", 
+			"<p>**a<a href=\"http://foo.bar/?q=**\">http://foo.bar/?q=**</a></p>");
+
+		/* [Example 458](http://spec.commonmark.org/0.28/#example-458) */
+		[TestMethod]
+		public void Example458 () => TestParse (
+			"__a<http://foo.bar/?q=__>", 
+			"<p>__a<a href=\"http://foo.bar/?q=__\">http://foo.bar/?q=__</a></p>");
 	}
 }

@@ -44,7 +44,10 @@
 		protected override string Emphasis (long start, long end, string text) => 
 			string.Format ("<em>{0}</em>", text);
 
-		protected override string StrongEmphasis (long start, long end, string text) =>
-			string.Format ("<strong>{0}</strong>", text);
+		protected override string StrongEmphasis (long start, long end, string text) => 
+			text.StartsWith ("<em>") && text.EndsWith ("</em>") ?
+				string.Format ("<em><strong>{0}</strong></em>", 
+					text.Substring (4, text.Length - 9)) :
+				string.Format ("<strong>{0}</strong>", text);
 	}
 }

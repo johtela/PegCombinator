@@ -328,6 +328,12 @@
 			return input => parser.Target (input);
 		}
 
+		public static Parser<int, S> Count<T, S> (this Parser<T, S> parser)
+		{
+			return from s in parser.ZeroOrMore ()
+				   select s.IsEmpty () ? 0 : s.Count ();
+		}
+
         /// <summary>
         /// Upcast the result of the parser.
         /// </summary>
