@@ -59,6 +59,10 @@
 		protected virtual string StrongEmphasis (long start, long end,
 			string text) => text;
 
+		protected virtual string Link (long start, long end, string text,
+			string dest, string title) =>
+			string.Format ("[{0}]({1} \"{2}\"", text, dest, title);
+
 		/*
 		## Parsing Rules
 		*/
@@ -352,6 +356,24 @@
 				.Or (AsteriskEmph (1, Emphasis))
 				.Or (UnderscoreEmph (1, Emphasis))
 				.Trace ("Emphasized");
+			/*
+			#### Links
+			*/
+			var LinkInlines =
+				(from il in SP.OneOf ('[', ']').Not ().Then (Inline.ForwardRef ())
+					.ZeroOrMore ()
+				 select il.ToString ("", "", ""))
+				.Trace ("LinkInlines");
+
+			var LinkText =
+				(from op in SP.Char ('[')
+				 from il in LinkInlines
+				 from cp in SP.Char (']')
+				 select il)
+				.Trace ("LinkText");
+
+
+
 			/*
 			#### Main Inline Selector
 			*/
