@@ -68,7 +68,7 @@
 		*/
 		private Parser<string, char> Doc ()
 		{
-			Parser.Debugging = false;
+			Parser.Debugging = true;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -385,13 +385,23 @@
 				 select chs.AsString ())
 				.Trace ("LinkDestAngle");
 
-			var LinkDestNormal =
-				(from chs in SP.WhitespaceChar
-					.Or (SP.Control)
-					.Or (SP.OneOf ('(', ')'))
-					.Not ()
-					.Then (EscapedChar.Or (SP.AnyChar)).ZeroOrMore ()
-				 select chs.AsString ())
+			var LinkDestNormal = new Ref<Parser<string, char>> ();
+
+			LinkDestNormal.Target =
+				//(from parts in (
+					//(from op in SP.Char ('(')
+					// from link in LinkDestNormal.ForwardRef ()
+					// from cp in SP.Char (')')
+					// select "(" + link + ")")
+					//.Or (
+						(from chs in SP.WhitespaceChar
+							.Or (SP.Control)
+							.Or (SP.OneOf ('(', ')'))
+							.Not ()
+							.Then (EscapedChar.Or (SP.AnyChar)).ZeroOrMore ()
+						select chs.AsString ())//))
+											  //.OneOrMore ()
+											  //select parts.ToString ("", "", ""))
 				.Trace ("LinkDestNormal");
 
 			var LinkDest = LinkDestAngle.Or (LinkDestNormal).Trace ("LinkDest");

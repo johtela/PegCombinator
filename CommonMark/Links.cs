@@ -52,5 +52,18 @@
 		public void Example466 () => TestParse (
 			"[link](<foo\nbar>)", 
 			"<p>[link](<foo\nbar>)</p>");
+
+		/* [Example 467](http://spec.commonmark.org/0.28/#example-467) */
+		[TestMethod]
+		public void Example467 () => TestParse (
+			"[link](\\(foo\\))", 
+			"<p><a href=\"(foo)\">link</a></p>");
+
+		/* [Example 468](http://spec.commonmark.org/0.28/#example-468) */
+		[TestMethod]
+		public void Example468 () => TestParse (
+			"[link](foo(and(bar)))", 
+			"<p><a href=\"foo(and(bar))\">link</a></p>");
+
 	}
 }
