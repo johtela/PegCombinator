@@ -63,6 +63,9 @@
 		public static readonly Parser<char, char> NonWhitespaceChar =
 			Parser.Satisfy<char> (c => !char.IsWhiteSpace (c)).Expect ("non-whitespace character");
 
+		public static readonly Parser<char, char> Control =
+			Parser.Satisfy<char> (char.IsControl).Expect ("control character");
+
 		/// <summary>
 		/// Parse a word (sequence of consecutive letters)
 		/// </summary>
@@ -167,6 +170,9 @@
 				res.Append (s.First);
 			return res.ToString ();
 		}
+
+		public static Parser<string, char> CharToString (this Parser<char, char> parser) => 
+			parser.Select (c => new string (c, 1));
 
 		public static string EscapeWhitespace (this char chr)
 		{

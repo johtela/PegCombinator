@@ -74,7 +74,11 @@
 			### Special and Normal Characters
 			*/
 			var NormalChar =
-				Parser.Not (SP.Punctuation.Or (SP.WhitespaceChar)).Then (SP.AnyChar)
+				SP.Punctuation
+				.Or (SP.WhitespaceChar)
+				.Or (SP.OneOf ('<', '>'))
+				.Not ()
+				.Then (SP.AnyChar)
 				.Trace ("NormalChar");
 			/*
 			### Whitespace
@@ -221,7 +225,7 @@
 				 from sc in SP.OneOf ('!', '"', '#', '$', '%', '&', '\'', '(', ')',
 					 '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?',
 					 '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~')
-				 select new string (sc, 1))
+				 select sc)
 				.Trace ("EscapedChar");
 			/*
 			#### Unformatted Text
@@ -245,7 +249,7 @@
 			#### Punctuation
 			*/
 			var Punct =
-				(from punc in SP.Punctuation
+				(from punc in SP.Punctuation.Or (SP.OneOf ('<', '>'))
 				 from pos in Parser.Position<char> ()
 				 select Punctuation (pos, punc))
 				.Trace ("Punct");
@@ -372,16 +376,62 @@
 				 select il)
 				.Trace ("LinkText");
 
+			var LinkDestAngle =
+				(from op in SP.Char ('<')
+				 from chs in SP.NoneOf (' ', '\t', '\n', '\r', '\\', '<', '>')
+					 .Or (EscapedChar)
+					 .ZeroOrMore ()
+				 from cp in SP.Char ('>')
+				 select chs.AsString ())
+				.Trace ("LinkDestAngle");
 
+			var LinkDestNormal =
+				(from chs in SP.WhitespaceChar
+					.Or (SP.Control)
+					.Or (SP.OneOf ('(', ')'))
+					.Not ()
+					.Then (EscapedChar.Or (SP.AnyChar)).ZeroOrMore ()
+				 select chs.AsString ())
+				.Trace ("LinkDestNormal");
 
+			var LinkDest = LinkDestAngle.Or (LinkDestNormal).Trace ("LinkDest");
+
+			Parser<string, char> LTitle (char open, char close) =>
+				(from oq in SP.Char (open)
+				from chs in SP.BlankLine ().Not ().Then (
+					EscapedChar.Or (SP.NoneOf (close))
+					.ZeroOrMore ())
+				from cq in SP.Char (close)
+				select chs.AsString ())
+				.Trace (string.Format ("LinkTitle {0}...{1}", open, close));
+
+			var LinkTitle = LTitle ('\'', '\'')
+				.Or (LTitle ('"', '"'))
+				.Or (LTitle ('(', ')'))
+				.Trace ("LinkTitle");
+
+			var InlineLink =
+				(from startPos in Parser.Position<char> ()
+				 from text in LinkText
+				 from op in SP.Char ('(')
+				 from ws1 in OptionalSpace
+				 from dest in LinkDest.OptionalRef ()
+				 from ws2 in OptionalSpace
+				 from title in LinkTitle.OptionalRef ()
+				 from ws3 in OptionalSpace
+				 from cp in SP.Char (')')
+				 from endPos in Parser.Position<char> ()
+				 select Link (startPos, endPos, text, dest, title))
+				.Trace ("InlineLink");
 			/*
 			#### Main Inline Selector
 			*/
 			Inline.Target =
 				LineBreak
+				.Or (InlineLink)
 				.Or (Emphasized)
 				.Or (SpaceBetweenWords)
-				.Or (EscapedChar)
+				.Or (EscapedChar.CharToString ())
 				.Or (Punct)
 				.Or (UnformattedText)
 				.Trace ("Inline");

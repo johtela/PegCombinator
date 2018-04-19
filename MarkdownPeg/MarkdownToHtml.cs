@@ -49,5 +49,11 @@
 				string.Format ("<em><strong>{0}</strong></em>", 
 					text.Substring (4, text.Length - 9)) :
 				string.Format ("<strong>{0}</strong>", text);
+
+		protected override string Link (long start, long end, string text, 
+			string dest, string title) => 
+			title != null ?
+				string.Format ("<a href=\"{0}\" title=\"{1}\">{2}</a>", dest ?? "", title, text) :
+				string.Format ("<a href=\"{0}\">{1}</a>", dest ?? "", text);
 	}
 }

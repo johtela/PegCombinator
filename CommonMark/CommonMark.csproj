@@ -54,6 +54,7 @@
     <Compile Include="AtxHeadings.cs" />
     <Compile Include="ThematicBreaks.cs" />
     <Compile Include="Emphasis.cs" />
+    <Compile Include="Links.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
