@@ -1,6 +1,7 @@
 ﻿namespace PegCombinator
 {
     using System;
+	using System.Collections.Generic;
 	using System.Diagnostics;
 	using System.Linq;
     using ExtensionCord;
@@ -180,37 +181,55 @@
         /// Creates a parser that will run a given parser zero or more times. The results
         /// of the input parser are added to a list.
         /// </summary>
-        public static Parser<Seq<T>, S> ZeroOrMore<T, S> (this Parser<T, S> parser)
+        public static Parser<List<T>, S> ZeroOrMore<T, S> (this Parser<T, S> parser)
         {
-            return (from x in parser
-                    from xs in parser.ZeroOrMore ()
-                    select x | xs)
-                    .Or (ToParser<Seq<T>, S> (null));
+			return input =>
+			{
+				var list = new List<T> ();
+				while (true)
+				{
+					var res = parser (input);
+					if (!res)
+						return ParseResult<List<T>>.Succeeded (input.Position, list);
+					list.Add (res.Result);
+				}
+			};
         }
 
         /// <summary>
         /// Creates a parser that will run a given parser one or more times. The results
         /// of the input parser are added to a list.
         /// </summary>
-        public static Parser<Seq<T>, S> OneOrMore<T, S> (this Parser<T, S> parser)
+        public static Parser<List<T>, S> OneOrMore<T, S> (this Parser<T, S> parser)
         {
-            return from x in parser
-                   from xs in parser.ZeroOrMore ()
-                   select x | xs;
+			return input =>
+			{
+				var res = parser (input);
+				if (!res)
+					return ParseResult<List<T>>.Failed (input.Position, res.Found, null);
+				var list = new List<T> ();
+				while (true)
+				{
+					res = parser (input);
+					if (!res)
+						return ParseResult<List<T>>.Succeeded (input.Position, list);
+					list.Add (res.Result);
+				}
+			};
         }
 
 		/// <summary>
 		/// Parsing succeeds if the given parser can be executed between min to max times.
 		/// </summary>
-		public static Parser<Seq<T>, S> Occurrences<T, S> (this Parser<T, S> parser, 
+		public static Parser<List<T>, S> Occurrences<T, S> (this Parser<T, S> parser, 
 			int min, int max)
 		{
-			return parser.ZeroOrMore ().Bind (s => 
+			return parser.ZeroOrMore ().Bind (list => 
 			{
-				var cnt = s.IsEmpty () ? 0 : s.Count ();
+				var cnt = list.Count ();
 				return cnt >= min && cnt <= max ?  
-					ToParser<Seq<T>, S> (s) :
-					Fail<Seq<T>, S> (cnt + " occurrences", min + " to " + max + " occurrences");
+					ToParser<List<T>, S> (list) :
+					Fail<List<T>, S> (cnt + " occurrences", min + " to " + max + " occurrences");
 			});
 		}
 
@@ -330,8 +349,8 @@
 
 		public static Parser<int, S> Count<T, S> (this Parser<T, S> parser)
 		{
-			return from s in parser.ZeroOrMore ()
-				   select s.IsEmpty () ? 0 : s.Count ();
+			return from list in parser.ZeroOrMore ()
+				   select list.Count ();
 		}
 
         /// <summary>
