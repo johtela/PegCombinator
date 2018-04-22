@@ -3,46 +3,59 @@
 	using System;
 	using System.Collections.Generic;
 	using System.Linq;
+	using System.Text;
 	using ExtensionCord;
 
-    public static class SequenceParsers
+    public static class CollectionParsers
     {
-		private static Parser<Seq<T>, T> SeqPart<T> (T[] items, int index)
+		public static Parser<List<T>, T> List<T> (params T[] items)
 		{
-			return index >= items.Length ? Parser.ToParser<Seq<T>, T> (null) :
-				from x in Parser.Satisfy<T> (x => x.Equals (items[index]))
-				from ys in SeqPart (items, index + 1)
-				select x | ys;
-		}
-
-		public static Parser<Seq<T>, T> Sequence<T> (params T[] items)
-		{
-			return SeqPart (items, 0);
+			return input =>
+			{
+				var list = new List<T> ();
+				var pos = input.Position;
+				for (var i = 0; i < items.Length; i++)
+				{
+					if (!input.MoveNext ())
+					{
+						input.Position = pos;
+						return ParseResult<List<T>>.Failed (input.Position, "end of input");
+					}
+					var item = input.Current;
+					if (!item.Equals (items[i]))
+					{
+						input.Position = pos;
+						return ParseResult<List<T>>.Failed (input.Position, item.ToString ());
+					}
+					list.Add (item);
+				}
+				return ParseResult<List<T>>.Succeeded (input.Position, list);
+			};
 		}
 
 		/// <summary>
 		/// Creates a parser that will read a list of items separated by a separator.
 		/// The list needs to have at least one item.
 		/// </summary>
-		public static Parser<Seq<T>, S> SeparatedBy1<T, U, S> (this Parser<T, S> parser,
+		public static Parser<List<T>, S> SeparatedBy1<T, U, S> (this Parser<T, S> parser,
 			Parser<U, S> separator)
 		{
 			return from x in parser
 				   from xs in
 					   (from y in separator.Then (parser)
 						select y).ZeroOrMore ()
-				   select x | xs;
+				   select xs.AddToFront (x);
 		}
 
 		/// <summary>
 		/// Creates a parser that will read a list of items separated by a separator.
 		/// The list can also be empty.
 		/// </summary>
-		public static Parser<Seq<T>, S> SeparatedBy<T, U, S> (this Parser<T, S> parser,
+		public static Parser<List<T>, S> SeparatedBy<T, U, S> (this Parser<T, S> parser,
 			Parser<U, S> separator)
 		{
 			return SeparatedBy1 (parser, separator).Or (
-				Parser.ToParser<Seq<T>, S> (null));
+				Parser.ToParser<List<T>, S> (new List<T> ()));
 		}
 
 		/// <summary>
@@ -95,6 +108,46 @@
 		{
 			return ops.Select (op => from _ in op.Item1
 									 select op.Item2).Aggregate (Parser.Or);
+		}
+
+		public static bool IsEmpty<T> (this List<T> list)
+		{
+			return list.Count == 0;
+		}
+
+		public static List<T> AddToFront<T> (this List<T> list, T item)
+		{
+			list.Insert (0, item);
+			return list;
+		}
+
+		public static List<T> AddToBack<T> (this List<T> list, T item)
+		{
+			list.Add (item);
+			return list;
+		}
+
+		public static List<T> RemoveFirst<T> (this List<T> list)
+		{
+			list.RemoveAt (0);
+			return list;
+		}
+
+		public static string ToString<T> (this List<T> list, string openBracket, 
+			string separator, string closeBracket)
+		{
+			var cnt = list.Count;
+			if (cnt == 0)
+				return string.Empty;
+			var res = new StringBuilder (openBracket);
+			res.Append (list[0]);
+			for (var i = 1; i < list.Count; i++)
+			{
+				res.Append (separator);
+				res.Append (list[i]);
+			}
+			res.Append (closeBracket);
+			return res.ToString ();
 		}
 	}
 }

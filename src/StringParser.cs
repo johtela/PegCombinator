@@ -1,6 +1,7 @@
 ﻿namespace PegCombinator
 {
 	using System;
+	using System.Collections.Generic;
 	using System.Text;
 	using ExtensionCord;
 
@@ -156,18 +157,18 @@
 		public static readonly Parser<string, char> Identifier =
 			from x in Letter
 			from xs in AlphaNumeric.ZeroOrMore ()
-			select (x | xs).AsString ();
+			select xs.AddToFront (x).AsString ();
 
 		public static Parser<T, char> Token<T> (this Parser<T, char> parser) =>
 			from v in parser
 			from _ in WhiteSpace
 			select v;
 
-		public static string AsString (this Seq<char> sequence)
+		public static string AsString (this List<char> list)
 		{
 			var res = new StringBuilder ();
-			for (var s = sequence; s != null; s = s.Rest)
-				res.Append (s.First);
+			for (int i = 0; i < list.Count; i++)
+				res.Append (list[i]);
 			return res.ToString ();
 		}
 

@@ -387,21 +387,27 @@
 
 			var LinkDestNormal = new Ref<Parser<string, char>> ();
 
+			var LinkDestNested =
+				(from op in SP.Char ('(')
+				 from link in LinkDestNormal.ForwardRef ()
+				 from cp in SP.Char (')')
+				 select "(" + link + ")")
+				.Trace ("LinkDestNested");
+
+			var LinkDestText =
+				(from chs in SP.WhitespaceChar
+					.Or (SP.Control)
+					.Or (SP.OneOf ('(', ')'))
+					.Not ()
+					.Then (EscapedChar.Or (SP.AnyChar)).ZeroOrMore ()
+				 select chs.AsString ())
+				.Trace ("LinkDestNormal");
+
 			LinkDestNormal.Target =
-				(from parts in (
-					(from op in SP.Char ('(')
-					 from link in LinkDestNormal.ForwardRef ()
-					 from cp in SP.Char (')')
-					 select "(" + link + ")")
-					.Or (
-						(from chs in SP.WhitespaceChar
-							.Or (SP.Control)
-							.Or (SP.OneOf ('(', ')'))
-							.Not ()
-							.Then (EscapedChar.Or (SP.AnyChar)).ZeroOrMore ()
-						select chs.AsString ())))
-					.OneOrMore ()
-				 select parts.ToString ("", "", ""))
+				(from head in LinkDestText.Optional ("")
+				 from nested in LinkDestNested.Optional ("")
+				 from tail in LinkDestText.Optional ("")
+				 select head + nested + tail)
 				.Trace ("LinkDestNormal");
 
 			var LinkDest = LinkDestAngle.Or (LinkDestNormal).Trace ("LinkDest");
@@ -478,8 +484,8 @@
 				 from endPos in Parser.Position<char> ()
 				 select Heading (startPos, endPos, level,
 					 inlines.IsEmpty () ? "" : 
-					 (inlines.First.All (char.IsWhiteSpace) ? 
-						inlines.Rest : inlines).ToString ("", "", "")))
+					 (inlines[0].All (char.IsWhiteSpace) ? 
+						inlines.RemoveFirst () : inlines).ToString ("", "", "")))
 				.Trace ("AtxHeading");
 			/*
 			#### Setext Headings

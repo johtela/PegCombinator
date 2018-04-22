@@ -208,6 +208,7 @@
 				if (!res)
 					return ParseResult<List<T>>.Failed (input.Position, res.Found, null);
 				var list = new List<T> ();
+				list.Add (res.Result);
 				while (true)
 				{
 					res = parser (input);
