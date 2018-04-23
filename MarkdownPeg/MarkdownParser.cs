@@ -2,6 +2,7 @@
 {
 	using System;
 	using System.Linq;
+	using System.Net;
 	using ExtensionCord;
 	using PegCombinator;
 	using SP = PegCombinator.StringParser;
@@ -62,6 +63,15 @@
 		protected virtual string Link (long start, long end, string text,
 			string dest, string title) =>
 			string.Format ("[{0}]({1} \"{2}\"", text, dest, title);
+
+		/*
+		## Helpers
+		*/
+		private string EscapeUri (string uri) => 
+			Uri.EscapeUriString (Uri.UnescapeDataString (WebUtility.HtmlDecode (uri)));
+
+		private string EscapeLinkTitle (string title) =>
+			WebUtility.HtmlEncode (WebUtility.HtmlDecode (title));
 
 		/*
 		## Parsing Rules
@@ -437,7 +447,8 @@
 				 from ws3 in OptionalSpace
 				 from cp in SP.Char (')')
 				 from endPos in Parser.Position<char> ()
-				 select Link (startPos, endPos, text, dest, title))
+				 select Link (startPos, endPos, text, 
+					EscapeUri (dest), EscapeLinkTitle (title)))
 				.Trace ("InlineLink");
 			/*
 			#### Main Inline Selector
