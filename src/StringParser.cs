@@ -67,6 +67,14 @@
 		public static readonly Parser<char, char> Control =
 			Parser.Satisfy<char> (char.IsControl).Expect ("control character");
 
+		public static readonly Parser<char, char> AsciiControl =
+			Parser.Satisfy<char> (c => c < 0x80 && char.IsControl (c))
+				.Expect ("ASCII control character");
+
+		public static readonly Parser<char, char> AsciiWhitespaceChar =
+			Parser.Satisfy<char> (c => c < 0x80 && char.IsWhiteSpace (c))
+			.Expect ("ASCII whitespace character");
+
 		/// <summary>
 		/// Parse a word (sequence of consecutive letters)
 		/// </summary>

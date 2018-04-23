@@ -67,11 +67,11 @@
 		/*
 		## Helpers
 		*/
-		private string EscapeUri (string uri) => 
-			Uri.EscapeUriString (Uri.UnescapeDataString (WebUtility.HtmlDecode (uri)));
+		private string DecodeUri (string uri) => 
+			Uri.UnescapeDataString (WebUtility.HtmlDecode (uri));
 
-		private string EscapeLinkTitle (string title) =>
-			WebUtility.HtmlEncode (WebUtility.HtmlDecode (title));
+		private string DecodeLinkTitle (string title) =>
+			WebUtility.HtmlDecode (title);
 
 		/*
 		## Parsing Rules
@@ -374,16 +374,23 @@
 			#### Links
 			*/
 			var LinkInlines =
-				(from il in SP.OneOf ('[', ']').Not ().Then (Inline.ForwardRef ())
+				(from il in SP.OneOf ('[', ']').Not ()
+					.Then (Inline.ForwardRef ())
 					.ZeroOrMore ()
 				 select il.ToString ("", "", ""))
 				.Trace ("LinkInlines");
 
-			var LinkText =
+			var InlineLink = new Ref<Parser<string, char>> ();
+			var LinkText = new Ref<Parser<string, char>> ();
+
+			LinkText.Target =
 				(from op in SP.Char ('[')
-				 from il in LinkInlines
+				 from ilb in LinkInlines
+				 from lt in InlineLink.ForwardRef ().Not ()
+					.Then (LinkText.ForwardRef ().OptionalRef ())
+				 from ile in LinkInlines
 				 from cp in SP.Char (']')
-				 select il)
+				 select ilb + (lt == null ? "" : "[" + lt + "]") + ile)
 				.Trace ("LinkText");
 
 			var LinkDestAngle =
@@ -395,6 +402,15 @@
 				 select chs.AsString ())
 				.Trace ("LinkDestAngle");
 
+			var LinkDestPart =
+				(from chs in SP.AsciiWhitespaceChar
+					.Or (SP.AsciiControl)
+					.Or (SP.OneOf ('(', ')'))
+					.Not ()
+					.Then (EscapedChar.Or (SP.AnyChar)).ZeroOrMore ()
+				 select chs.AsString ())
+				.Trace ("LinkDestPart");
+
 			var LinkDestNormal = new Ref<Parser<string, char>> ();
 
 			var LinkDestNested =
@@ -404,19 +420,10 @@
 				 select "(" + link + ")")
 				.Trace ("LinkDestNested");
 
-			var LinkDestText =
-				(from chs in SP.WhitespaceChar
-					.Or (SP.Control)
-					.Or (SP.OneOf ('(', ')'))
-					.Not ()
-					.Then (EscapedChar.Or (SP.AnyChar)).ZeroOrMore ()
-				 select chs.AsString ())
-				.Trace ("LinkDestNormal");
-
 			LinkDestNormal.Target =
-				(from head in LinkDestText.Optional ("")
+				(from head in LinkDestPart.Optional ("")
 				 from nested in LinkDestNested.Optional ("")
-				 from tail in LinkDestText.Optional ("")
+				 from tail in LinkDestPart.Optional ("")
 				 select head + nested + tail)
 				.Trace ("LinkDestNormal");
 
@@ -436,19 +443,19 @@
 				.Or (LTitle ('(', ')'))
 				.Trace ("LinkTitle");
 
-			var InlineLink =
+			InlineLink.Target =
 				(from startPos in Parser.Position<char> ()
-				 from text in LinkText
+				 from text in LinkText.Target
 				 from op in SP.Char ('(')
-				 from ws1 in OptionalSpace
+				 from ws1 in SP.WhitespaceChar.ZeroOrMore ()
 				 from dest in LinkDest.OptionalRef ()
-				 from ws2 in OptionalSpace
+				 from ws2 in SP.WhitespaceChar.ZeroOrMore ()
 				 from title in LinkTitle.OptionalRef ()
-				 from ws3 in OptionalSpace
+				 from ws3 in SP.WhitespaceChar.ZeroOrMore ()
 				 from cp in SP.Char (')')
 				 from endPos in Parser.Position<char> ()
 				 select Link (startPos, endPos, text, 
-					EscapeUri (dest), EscapeLinkTitle (title)))
+					DecodeUri (dest), DecodeLinkTitle (title)))
 				.Trace ("InlineLink");
 			/*
 			#### Main Inline Selector

@@ -1,6 +1,7 @@
 ﻿namespace MarkdownPeg
 {
 	using System;
+	using System.Net;
 
 	public class MarkdownToHtml : MarkdownParser
 	{
@@ -51,9 +52,13 @@
 				string.Format ("<strong>{0}</strong>", text);
 
 		protected override string Link (long start, long end, string text, 
-			string dest, string title) =>
-			title != null ?
+			string dest, string title)
+		{
+			dest = Uri.EscapeUriString (dest);
+			title = WebUtility.HtmlEncode (title);
+			return title != null ?
 				string.Format ("<a href=\"{0}\" title=\"{1}\">{2}</a>", dest ?? "", title, text) :
 				string.Format ("<a href=\"{0}\">{1}</a>", dest ?? "", text);
+		}
 	}
 }

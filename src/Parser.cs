@@ -185,7 +185,7 @@
         {
 			return input =>
 			{
-				var list = new List<T> ();
+				var list = new List<T> (0);
 				while (true)
 				{
 					var res = parser (input);
@@ -207,8 +207,7 @@
 				var res = parser (input);
 				if (!res)
 					return ParseResult<List<T>>.Failed (input.Position, res.Found, null);
-				var list = new List<T> ();
-				list.Add (res.Result);
+				var list = new List<T> (1) { res.Result };
 				while (true)
 				{
 					res = parser (input);
