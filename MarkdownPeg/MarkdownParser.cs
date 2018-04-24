@@ -65,6 +65,14 @@
 			string.Format ("[{0}]({1} \"{2}\"", text, dest, title);
 
 		/*
+		## Parser State
+		*/
+		private class ParserState
+		{
+			public bool Link { get; set; }
+		}
+
+		/*
 		## Helpers
 		*/
 		private string DecodeUri (string uri) => 
@@ -445,6 +453,9 @@
 
 			InlineLink.Target =
 				(from startPos in Parser.Position<char> ()
+				 from st in Parser.GetState<ParserState, char> ()
+				 where !st.Link
+				 from st1 in Parser.ModifyState<ParserState, char> (st => st.Link = true)
 				 from text in LinkText.Target
 				 from op in SP.Char ('(')
 				 from ws1 in SP.WhitespaceChar.ZeroOrMore ()
@@ -453,6 +464,7 @@
 				 from title in LinkTitle.OptionalRef ()
 				 from ws3 in SP.WhitespaceChar.ZeroOrMore ()
 				 from cp in SP.Char (')')
+				 from st2 in Parser.ModifyState<ParserState, char> (st => st.Link = false)
 				 from endPos in Parser.Position<char> ()
 				 select Link (startPos, endPos, text, 
 					DecodeUri (dest), DecodeLinkTitle (title)))
@@ -563,7 +575,8 @@
 				.Trace ("AnyBlock");
 
 			return
-				(from blocks in AnyBlock.ZeroOrMore ()
+				(from _ in Parser.SetState<ParserState, char> (() => new ParserState ())
+				 from blocks in AnyBlock.ZeroOrMore ()
 				 select blocks.IsEmpty () ? "" : blocks.SeparateWith (""))
 				.Trace ("Doc");
 		}

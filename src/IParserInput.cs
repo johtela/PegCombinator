@@ -12,11 +12,28 @@
 	{
 		long Position { get; set; }
 		ParseDirection Direction { get; set; }
+		object State { get; set; }
 	}
 
 	public static class ParserInput
 	{
-		private class StringInput : IParserInput<char>
+		private abstract class InputBase<S> : IParserInput<S>
+		{
+			public abstract long Position { get; set; }
+			public ParseDirection Direction { get; set; }
+			public object State { get; set; }
+
+			public abstract S Current { get; }
+			object IEnumerator.Current => Current;
+
+			public virtual void Dispose () { }
+
+			public abstract bool MoveNext ();
+
+			public abstract void Reset ();
+		}
+
+		private class StringInput : InputBase<char>
 		{
 			private string _input;
 			private int _position;
@@ -27,24 +44,18 @@
 				Reset ();
 			}
 
-			public long Position
+			public override long Position
 			{
 				get => _position;
 				set => _position = (int)value;
 			}
 
-			public ParseDirection Direction { get; set; }
-
-			public char Current =>
+			public override char Current =>
 				_position < 0 || _position >= _input.Length ?
 					'\0' :
 					_input[_position];
 
-			object IEnumerator.Current => Current;
-
-			public void Dispose () { }
-
-			public bool MoveNext ()
+			public override bool MoveNext ()
 			{
 				var len = _input.Length;
 				_position += (int)Direction;
@@ -56,14 +67,14 @@
 				return true;
 			}
 
-			public void Reset ()
+			public override void Reset ()
 			{
 				_position = -1;
 				Direction = ParseDirection.Forward;
 			}
 		}
 
-		private class ArrayInput<S> : IParserInput<S>
+		private class ArrayInput<S> : InputBase<S>
 		{
 			private S[] _input;
 			private int _position;
@@ -74,24 +85,18 @@
 				Reset ();
 			}
 
-			public long Position
+			public override long Position
 			{
 				get => _position;
 				set => _position = (int)value;
 			}
 
-			public ParseDirection Direction { get; set; }
-
-			public S Current =>
+			public override S Current =>
 				_position < 0 || _position >= _input.Length ?
 					default (S) :
 					_input[_position];
 
-			object IEnumerator.Current => Current;
-
-			public void Dispose () { }
-
-			public bool MoveNext ()
+			public override bool MoveNext ()
 			{
 				var len = _input.Length;
 				_position += (int)Direction;
@@ -103,14 +108,14 @@
 				return true;
 			}
 
-			public void Reset ()
+			public override void Reset ()
 			{
 				_position = -1;
 				Direction = ParseDirection.Forward;
 			}
 		}
 
-		private class StreamInput<S> : IParserInput<S>
+		private class StreamInput<S> : InputBase<S>
 		{
 			private Stream _input;
 			private S _current;
@@ -121,21 +126,18 @@
 				Direction = ParseDirection.Forward;
 			}
 
-			public long Position
+			public override long Position
 			{
 				get => _input.Position;
 				set => _input.Position = value;
 			}
 
-			public ParseDirection Direction { get; set; }
+			public override S Current => _current;
 
-			public S Current => _current;
+			public override void Dispose () => 
+				_input.Dispose ();
 
-			object IEnumerator.Current => Current;
-
-			public void Dispose () => _input.Dispose ();
-
-			public bool MoveNext ()
+			public override bool MoveNext ()
 			{
 				var size = Marshal.SizeOf<S> ();
 				if (Direction == ParseDirection.Backward)
@@ -149,7 +151,7 @@
 				return true;
 			}
 
-			public void Reset ()
+			public override void Reset ()
 			{
 				_input.Seek (0, SeekOrigin.Begin);
 				Direction = ParseDirection.Forward;
@@ -189,6 +191,12 @@
 					_input.Current;
 
 			object IEnumerator.Current => Current;
+
+			public object State
+			{
+				get => _input.State;
+				set => _input.State = value;
+			}
 
 			public void Dispose () => _input.Dispose ();
 

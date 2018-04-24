@@ -353,10 +353,30 @@
 				   select list.Count ();
 		}
 
-        /// <summary>
-        /// Upcast the result of the parser.
-        /// </summary>
-        public static Parser<U, S> Cast<T, U, S> (this Parser<T, S> parser) where T : U
+		public static Parser<T, S> GetState<T, S> ()
+		{
+			return input => ParseResult<T>.Succeeded (input.Position, (T)input.State);
+		}
+
+		public static Parser<T, S> SetState<T, S> (Func<T> setter)
+		{
+			return input =>
+				ParseResult<T>.Succeeded (input.Position, (T)(input.State = setter ()));
+		}
+
+		public static Parser<T, S> ModifyState<T, S> (Action<T> modify)
+		{
+			return input =>
+			{
+				modify ((T)input.State);
+				return ParseResult<T>.Succeeded (input.Position, (T)input.State);
+			};
+		}
+
+		/// <summary>
+		/// Upcast the result of the parser.
+		/// </summary>
+		public static Parser<U, S> Cast<T, U, S> (this Parser<T, S> parser) where T : U
         {
             return from x in parser
                    select (U)x;
