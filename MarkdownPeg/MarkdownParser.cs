@@ -69,7 +69,29 @@
 		*/
 		private class ParserState
 		{
-			public bool Link { get; set; }
+			public int NestedLinkDepth = 0;
+			public int MaxNestedLinkDepth = 0;
+
+			public bool IncreaseLinkDepth ()
+			{
+				NestedLinkDepth++;
+				return true;
+			}
+
+			public bool DecreaseLinkDepth ()
+			{
+				NestedLinkDepth--;
+				return true;
+			}
+
+			public bool UpdateMaxNestedLinks ()
+			{
+				MaxNestedLinkDepth = Math.Max (MaxNestedLinkDepth, NestedLinkDepth);
+				var res = NestedLinkDepth != 1 || MaxNestedLinkDepth < 2;
+				if (!res)
+					MaxNestedLinkDepth = 0;
+				return res;
+			}
 		}
 
 		/*
@@ -86,7 +108,7 @@
 		*/
 		private Parser<string, char> Doc ()
 		{
-			Parser.Debugging = false;
+			Parser.Debugging = true;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -394,11 +416,11 @@
 			LinkText.Target =
 				(from op in SP.Char ('[')
 				 from ilb in LinkInlines
-				 from lt in InlineLink.ForwardRef ().Not ()
-					.Then (LinkText.ForwardRef ().OptionalRef ())
+				 from lt in /*InlineLink.ForwardRef ().Not ()
+					.Then (*/LinkText.ForwardRef ().OptionalRef ()//)
 				 from ile in LinkInlines
 				 from cp in SP.Char (']')
-				 select ilb + (lt == null ? "" : "[" + lt + "]") + ile)
+				 select ilb /*+ (lt == null ? "" : "[" + lt + "]") + ile*/)
 				.Trace ("LinkText");
 
 			var LinkDestAngle =
@@ -452,10 +474,9 @@
 				.Trace ("LinkTitle");
 
 			InlineLink.Target =
-				(from startPos in Parser.Position<char> ()
-				 from st in Parser.GetState<ParserState, char> ()
-				 where !st.Link
-				 from st1 in Parser.ModifyState<ParserState, char> (st => st.Link = true)
+				(from _ in Parser.ModifyState<ParserState, bool, char> (st =>
+					 st.IncreaseLinkDepth ())
+				 from startPos in Parser.Position<char> ()
 				 from text in LinkText.Target
 				 from op in SP.Char ('(')
 				 from ws1 in SP.WhitespaceChar.ZeroOrMore ()
@@ -464,10 +485,13 @@
 				 from title in LinkTitle.OptionalRef ()
 				 from ws3 in SP.WhitespaceChar.ZeroOrMore ()
 				 from cp in SP.Char (')')
-				 from st2 in Parser.ModifyState<ParserState, char> (st => st.Link = false)
 				 from endPos in Parser.Position<char> ()
-				 select Link (startPos, endPos, text, 
-					DecodeUri (dest), DecodeLinkTitle (title)))
+				 from ok in Parser.ModifyState<ParserState, bool, char> (st =>
+					st.UpdateMaxNestedLinks ())
+				 where ok
+				 select Link (startPos, endPos, text,
+					 DecodeUri (dest), DecodeLinkTitle (title)))
+				.CleanupState<string, ParserState, char> (st => st.DecreaseLinkDepth ())
 				.Trace ("InlineLink");
 			/*
 			#### Main Inline Selector
