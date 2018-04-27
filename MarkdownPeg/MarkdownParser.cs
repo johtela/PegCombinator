@@ -78,7 +78,7 @@
 		*/
 		private Parser<string, char> Doc ()
 		{
-			Parser.Debugging = false;
+			Parser.Debugging = true;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -86,7 +86,7 @@
 			var NormalChar =
 				SP.Punctuation
 				.Or (SP.WhitespaceChar)
-				.Or (SP.OneOf ('<', '>'))
+				.Or (SP.OneOf ('<', '>', '[', ']', '*'))
 				.Not ()
 				.Then (SP.AnyChar)
 				.Trace ("NormalChar");
@@ -259,7 +259,7 @@
 			#### Punctuation
 			*/
 			var Punct =
-				(from punc in SP.Punctuation.Or (SP.OneOf ('<', '>'))
+				(from punc in SP.Punctuation.Or (SP.OneOf ('<', '>', '[', ']', '*'))
 				 from pos in Parser.Position<char> ()
 				 select Punctuation (pos, punc))
 				.Trace ("Punct");

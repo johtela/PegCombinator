@@ -197,5 +197,23 @@
 			"[foo *[bar [baz](/uri)](/uri)*](/uri)", 
 			"<p>[foo <em>[bar <a href=\"/uri\">baz</a>](/uri)</em>](/uri)</p>");
 
+		/* [Example 491](http://spec.commonmark.org/0.28/#example-491) */
+		[TestMethod]
+		public void Example491 () => TestParse (
+			"![[[foo](uri1)](uri2)](uri3)", 
+			"<p><img src=\"uri3\" alt=\"[foo](uri2)\" /></p>");
+
+		/* [Example 492](http://spec.commonmark.org/0.28/#example-492) */
+		[TestMethod]
+		public void Example492 () => TestParse (
+			"*[foo*](/uri)",
+			"<p>*<a href=\"/uri\">foo*</a></p>");
+
+		/* [Example 493](http://spec.commonmark.org/0.28/#example-493) */
+		[TestMethod]
+		public void Example493 () => TestParse (
+			"[foo *bar](baz*)", 
+			"<p><a href=\"baz*\">foo *bar</a></p>");
+
 	}
 }
