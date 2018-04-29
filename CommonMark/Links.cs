@@ -186,13 +186,13 @@
 			"<p><a href=\"/uri\"><img src=\"moon.jpg\" alt=\"moon\" /></a></p>");
 
 		/* [Example 489](http://spec.commonmark.org/0.28/#example-489) */
-		[TestMethod, Ignore]
+		[TestMethod]
 		public void Example489 () => TestParse (
 			"[foo [bar](/uri)](/uri)", 
 			"<p>[foo <a href=\"/uri\">bar</a>](/uri)</p>");
 
 		/* [Example 490](http://spec.commonmark.org/0.28/#example-490) */
-		[TestMethod, Ignore]
+		[TestMethod]
 		public void Example490 () => TestParse (
 			"[foo *[bar [baz](/uri)](/uri)*](/uri)", 
 			"<p>[foo <em>[bar <a href=\"/uri\">baz</a>](/uri)</em>](/uri)</p>");

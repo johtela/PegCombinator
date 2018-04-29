@@ -364,12 +364,12 @@
 				ParseResult<T>.Succeeded (input.Position, (T)(input.State = setter ()));
 		}
 
-		public static Parser<U, S> ModifyState<T, U, S> (Func<T, U> modify)
+		public static Parser<T, S> ModifyState<T, S> (Action<T> modify)
 		{
 			return input =>
 			{
-				var res = modify ((T)input.State);
-				return ParseResult<U>.Succeeded (input.Position, res);
+				modify ((T)input.State);
+				return ParseResult<T>.Succeeded (input.Position, (T)input.State);
 			};
 		}
 

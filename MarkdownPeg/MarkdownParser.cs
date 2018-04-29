@@ -1,6 +1,7 @@
 ﻿namespace MarkdownPeg
 {
 	using System;
+	using System.Collections.Generic;
 	using System.Linq;
 	using System.Net;
 	using ExtensionCord;
@@ -74,19 +75,49 @@
 			WebUtility.HtmlDecode (title);
 
 		/*
+		## Parsing State
+		*/
+		private class ParseState
+		{
+			private Stack<Parser<char, char>> _stopChars =
+				new Stack<Parser<char, char>> ();
+
+			public ParseState ()
+			{
+				_stopChars.Push (Parser.Fail<char, char> ("", ""));
+			}
+
+			public void PushStop (Parser<char, char> parser)
+			{
+				_stopChars.Push (parser);
+			}
+
+			public void PopStop ()
+			{
+				_stopChars.Pop ();
+			}
+
+			public Parser<char, char> StopOnChar
+			{
+				get => _stopChars.Peek ();
+			}
+		}
+
+		/*
 		## Parsing Rules
 		*/
 		private Parser<string, char> Doc ()
 		{
-			Parser.Debugging = true;
+			Parser.Debugging = false;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
 			*/
+			var PunctChar = SP.Punctuation.Or (SP.OneOf ('<', '>'));
+
 			var NormalChar =
-				SP.Punctuation
+				PunctChar
 				.Or (SP.WhitespaceChar)
-				.Or (SP.OneOf ('<', '>', '[', ']', '*'))
 				.Not ()
 				.Then (SP.AnyChar)
 				.Trace ("NormalChar");
@@ -259,7 +290,7 @@
 			#### Punctuation
 			*/
 			var Punct =
-				(from punc in SP.Punctuation.Or (SP.OneOf ('<', '>', '[', ']', '*'))
+				(from punc in PunctChar
 				 from pos in Parser.Position<char> ()
 				 select Punctuation (pos, punc))
 				.Trace ("Punct");
@@ -373,23 +404,34 @@
 			/*
 			#### Links
 			*/
+			var Brackets = SP.OneOf ('[', ']');
+
 			var LinkInlines =
-				(from il in SP.OneOf ('[', ']').Not ()
+				(from il in Brackets.Not ()
 					.Then (Inline.ForwardRef ())
 					.ZeroOrMore ()
 				 select il.ToString ("", "", ""))
 				.Trace ("LinkInlines");
 
 			var InlineLink = new Ref<Parser<string, char>> ();
-			var LinkText = new Ref<Parser<string, char>> ();
+			var LinkTextNested = new Ref<Parser<string, char>> ();
 
-			LinkText.Target =
+			LinkTextNested.Target =
 				(from op in SP.Char ('[')
 				 from ilb in LinkInlines
-				 from lt in LinkText.ForwardRef ().OptionalRef ()
+				 from lt in InlineLink.ForwardRef ().Not ()
+					 .Then (LinkTextNested.ForwardRef ().OptionalRef ())
 				 from ile in LinkInlines
 				 from cp in SP.Char (']')
 				 select ilb + (lt == null ? "" : "[" + lt + "]") + ile)
+				.Trace ("NestedLinkText");
+
+			var LinkText =
+				Parser.ModifyState<ParseState, char> (st =>
+					st.PushStop (Brackets))
+				.Then (LinkTextNested.Target)
+				.CleanupState<string, ParseState, char> (st =>
+					st.PopStop ())
 				.Trace ("LinkText");
 
 			var LinkDestAngle =
@@ -444,7 +486,7 @@
 
 			InlineLink.Target =
 				(from startPos in Parser.Position<char> ()
-				 from text in LinkText.Target
+				 from text in LinkText
 				 from op in SP.Char ('(')
 				 from ws1 in SP.WhitespaceChar.ZeroOrMore ()
 				 from dest in LinkDest.OptionalRef ()
@@ -460,13 +502,16 @@
 			#### Main Inline Selector
 			*/
 			Inline.Target =
-				LineBreak
-				.Or (InlineLink)
-				.Or (Emphasized)
-				.Or (SpaceBetweenWords)
-				.Or (EscapedChar.CharToString ())
-				.Or (Punct)
-				.Or (UnformattedText)
+				(from st in Parser.GetState<ParseState, char> ()
+				 from inline in st.StopOnChar.Not ()
+				 .Then (LineBreak
+				 .Or (InlineLink)
+				 .Or (Emphasized)
+				 .Or (SpaceBetweenWords)
+				 .Or (EscapedChar.CharToString ())
+				 .Or (Punct)
+				 .Or (UnformattedText))
+				 select inline)
 				.Trace ("Inline");
 
 			var Inlines =
@@ -562,7 +607,8 @@
 				.Trace ("AnyBlock");
 
 			return
-				(from blocks in AnyBlock.ZeroOrMore ()
+				(from _ in Parser.SetState<ParseState, char> (() => new ParseState ())
+				 from blocks in AnyBlock.ZeroOrMore ()
 				 select blocks.IsEmpty () ? "" : blocks.SeparateWith (""))
 				.Trace ("Doc");
 		}
