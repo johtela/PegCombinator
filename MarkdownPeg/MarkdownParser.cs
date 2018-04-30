@@ -10,13 +10,13 @@
 
 	public class MarkdownParser
     {
-		private Parser<string, char> _doc;
+		private Parser<StringTree, char> _doc;
 
 		public MarkdownParser () => 
 			_doc = Doc ();
 
 		public string Run (IParserInput<char> input) => 
-			_doc.Parse (input.TerminateWith ('\n'));
+			_doc.Parse (input.TerminateWith ('\n')).ToString ();
 
 		public string Run (string input) => 
 			Run (ParserInput.String (input));
@@ -24,46 +24,46 @@
 		/*
 		## Visitor Methods
 		*/
-		protected virtual string Block (long start, long end,
-			string blockText) => blockText;
+		protected virtual StringTree Block (long start, long end,
+			StringTree blockText) => blockText;
 
-		protected virtual string ThematicBreak (long start, long end,
-			string text) => text;
+		protected virtual StringTree ThematicBreak (long start, long end,
+			StringTree text) => text;
 
-		protected virtual string Heading (long start, long end,
-			int headingLevel, string headingText) =>
+		protected virtual StringTree Heading (long start, long end,
+			int headingLevel, StringTree headingText) =>
 			"#".Times (headingLevel) + " " + headingText + Environment.NewLine;
 
-		protected virtual string Verbatim (long start, long end,
-			string verbatimText) => verbatimText;
+		protected virtual StringTree Verbatim (long start, long end,
+			StringTree verbatimText) => verbatimText;
 
-		protected virtual string Paragraph (long start, long end,
-			string text) => text;
+		protected virtual StringTree Paragraph (long start, long end,
+			StringTree text) => text;
 
-		protected virtual string Text (long start, long end, 
-			string text) => text;
+		protected virtual StringTree Text (long start, long end, 
+			StringTree text) => text;
 
-		protected virtual string Space (long start, long end,
-			string text) => text;
+		protected virtual StringTree Space (long start, long end,
+			StringTree text) => text;
 
-		protected virtual string Punctuation (long pos, char punctuation) => 
+		protected virtual StringTree Punctuation (long pos, char punctuation) => 
 			new string (punctuation, 1);
 
-		protected virtual string SoftLineBreak (long start, long end,
-			string text) => text;
+		protected virtual StringTree SoftLineBreak (long start, long end,
+			StringTree text) => text;
 
-		protected virtual string HardLineBreak (long start, long end,
-			string text) => text;
+		protected virtual StringTree HardLineBreak (long start, long end,
+			StringTree text) => text;
 
-		protected virtual string Emphasis (long start, long end,
-			string text) => text;
+		protected virtual StringTree Emphasis (long start, long end,
+			StringTree text) => text;
 
-		protected virtual string StrongEmphasis (long start, long end,
-			string text) => text;
+		protected virtual StringTree StrongEmphasis (long start, long end,
+			StringTree text) => text;
 
-		protected virtual string Link (long start, long end, string text,
+		protected virtual StringTree Link (long start, long end, StringTree text,
 			string dest, string title) =>
-			string.Format ("[{0}]({1} \"{2}\"", text, dest, title);
+			"[" + text + "](" + dest + " \"" + title + "\"";
 
 		/*
 		## Helpers
@@ -106,7 +106,7 @@
 		/*
 		## Parsing Rules
 		*/
-		private Parser<string, char> Doc ()
+		private Parser<StringTree, char> Doc ()
 		{
 			Parser.Debugging = false;
 			Parser.UseMemoization = false;
@@ -166,14 +166,14 @@
 				 from text in NonblankIndentedLine.OneOrMore ()
 				 select (bls.IsEmpty () ? text :
 					 bls.Select (_ => Environment.NewLine).Concat (text))
-					 .SeparateWith (""))
+					 .FromEnumerable ())
 				.Trace ("VerbatimChunk");
 
 			var VerbatimBlock =
 				(from startPos in Parser.Position<char> ()
 				 from chunks in VerbatimChunk.OneOrMore ()
 				 from endPos in Parser.Position<char> ()
-				 select Verbatim (startPos, endPos, chunks.SeparateWith ("")))
+				 select Verbatim (startPos, endPos, chunks.FromEnumerable ()))
 				.Trace ("VerbatimBlock");
 			/*
 			### Thematic Breaks
@@ -185,7 +185,7 @@
 					from ci in SP.Char (c)
 					select si + new string (ci, 1))
 					.Occurrences (2, int.MaxValue)
-				select new string (ch, 1) + rest.ToString ("", "", "");
+				select  rest.ToString (new string (ch, 1), "", "");
 
 			var ThemaBreak =
 				(from ni in NonindentSpace
@@ -194,7 +194,8 @@
 				 from endPos in Parser.Position<char> ()
 				 from sp in OptionalSpace
 				 from nl in SP.NewLine
-				 select ThematicBreak (startPos, endPos, rule + sp + nl))
+				 select ThematicBreak (startPos, endPos, 
+					(StringTree)rule + sp + nl))
 				.Trace ("ThemaBreak");
 			/*
 			### Inlines
@@ -239,7 +240,7 @@
 				 from nl in SP.NewLine
 				 from next in IsNormalLine
 				 from ws in OptionalSpace
-				 select sp + nl + ws)
+				 select (StringTree)sp + nl + ws)
 				.Trace ("EndLine");
 
 			var SoftLB =
@@ -333,7 +334,7 @@
 				 select (int)(f - p) + 1)
 				.Trace ("RightFlankDelimRun " + new string (delim, 1));
 
-			var Inline = new Ref<Parser<string, char>> ();
+			var Inline = new Ref<Parser<StringTree, char>> ();
 
 			var AsteriskEmphEnd = RightFlankDelimRun ('*');
 
@@ -351,16 +352,16 @@
 				where !canopen.HasValue || (lfd + cfd) % 3 != 0
 				select cfd;
 
-			Parser<string, char> EmphInlines (string delim, int lfd,
+			Parser<StringTree, char> EmphInlines (string delim, int lfd,
 				Parser<int, char> terminator) =>
 				(from il in ClosingDelim (delim, lfd, terminator).Not ()
 					.Then (Inline.ForwardRef ())
 					.OneOrMore ()
-				 select il.ToString ("", "", ""))
+				 select il.FromEnumerable ())
 				.Trace ("EmphInlines");
 
-			Parser<string, char> AsteriskEmph (int cnt,
-				Func<long, long, string, string> transform)
+			Parser<StringTree, char> AsteriskEmph (int cnt,
+				Func<long, long, StringTree, StringTree> transform)
 			{
 				var delim = new string ('*', cnt);
 				var emphDelim = SP.String (delim).Trace ("EmphDelim " + delim);
@@ -376,8 +377,8 @@
 					.Trace ("AsteriskEmph");
 			}
 
-			Parser<string, char> UnderscoreEmph (int cnt,
-				Func<long, long, string, string> transform)
+			Parser<StringTree, char> UnderscoreEmph (int cnt,
+				Func<long, long, StringTree, StringTree> transform)
 			{
 				var delim = new string ('_', cnt);
 				var emphDelim = SP.String (delim).Trace ("EmphDelim " + delim);
@@ -410,11 +411,11 @@
 				(from il in Brackets.Not ()
 					.Then (Inline.ForwardRef ())
 					.ZeroOrMore ()
-				 select il.ToString ("", "", ""))
+				 select il.FromEnumerable ())
 				.Trace ("LinkInlines");
 
-			var InlineLink = new Ref<Parser<string, char>> ();
-			var LinkTextNested = new Ref<Parser<string, char>> ();
+			var InlineLink = new Ref<Parser<StringTree, char>> ();
+			var LinkTextNested = new Ref<Parser<StringTree, char>> ();
 
 			LinkTextNested.Target =
 				(from op in SP.Char ('[')
@@ -430,7 +431,7 @@
 				Parser.ModifyState<ParseState, char> (st =>
 					st.PushStop (Brackets))
 				.Then (LinkTextNested.Target)
-				.CleanupState<string, ParseState, char> (st =>
+				.CleanupState<StringTree, ParseState, char> (st =>
 					st.PopStop ())
 				.Trace ("LinkText");
 
@@ -508,7 +509,8 @@
 				 .Or (InlineLink)
 				 .Or (Emphasized)
 				 .Or (SpaceBetweenWords)
-				 .Or (EscapedChar.CharToString ())
+				 .Or (from c in EscapedChar
+					  select (StringTree)c)
 				 .Or (Punct)
 				 .Or (UnformattedText))
 				 select inline)
@@ -516,7 +518,7 @@
 
 			var Inlines =
 				(from il in Inline.Target.OneOrMore ()
-				 select il.ToString ("", "", ""))
+				 select il.FromEnumerable ())
 				.Trace ("Inlines"); ;
 			/*
 			### Headings
@@ -545,9 +547,9 @@
 				 from atxend in AtxEnd
 				 from endPos in Parser.Position<char> ()
 				 select Heading (startPos, endPos, level,
-					 inlines.IsEmpty () ? "" : 
-					 (inlines[0].All (char.IsWhiteSpace) ? 
-						inlines.RemoveFirst () : inlines).ToString ("", "", "")))
+					 inlines.IsEmpty () ? StringTree.Empty : 
+					 (inlines[0].IsLeaf () && inlines[0].LeafValue ().All (char.IsWhiteSpace) ? 
+						inlines.Skip (1) : inlines).FromEnumerable ()))
 				.Trace ("AtxHeading");
 			/*
 			#### Setext Headings
@@ -580,7 +582,7 @@
 				 from ul in SetextUnderline
 				 from endPos in Parser.Position<char> ()
 				 select Heading (startPos, endPos, ul.Contains ("=") ? 1 : 2,
-					 inlines.ToString ("", "", "")))
+					 inlines.FromEnumerable ()))
 				.Trace ("SetextHeading");
 			/*
 			### Paragraphs
@@ -609,7 +611,7 @@
 			return
 				(from _ in Parser.SetState<ParseState, char> (() => new ParseState ())
 				 from blocks in AnyBlock.ZeroOrMore ()
-				 select blocks.IsEmpty () ? "" : blocks.SeparateWith (""))
+				 select blocks.IsEmpty () ? StringTree.Empty : blocks.FromEnumerable ())
 				.Trace ("Doc");
 		}
 	}

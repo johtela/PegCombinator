@@ -133,7 +133,7 @@
 			return list;
 		}
 
-		public static string ToString<T> (this List<T> list, string openBracket, 
+		public static string ToString<T> (this List<T> list, string openBracket,
 			string separator, string closeBracket)
 		{
 			var cnt = list.Count;

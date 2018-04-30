@@ -180,9 +180,6 @@
 			return res.ToString ();
 		}
 
-		public static Parser<string, char> CharToString (this Parser<char, char> parser) => 
-			parser.Select (c => new string (c, 1));
-
 		public static string EscapeWhitespace (this char chr)
 		{
 			switch (chr)

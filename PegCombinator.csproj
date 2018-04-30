@@ -46,7 +46,7 @@
     <Compile Include="src\IParserInput.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="src\StringParser.cs" />
-    <Compile Include="src\Thunk.cs" />
+    <Compile Include="src\StringTree.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
