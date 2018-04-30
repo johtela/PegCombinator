@@ -139,9 +139,9 @@
 		/// from the sequence and returns an empty string. Note that the parser
 		/// expects find some whitespace, or else it fails.
 		/// </summary>
-		public static readonly Parser<string, char> WhiteSpace =
+		public static Parser<string, char> WhiteSpace (string result = "") =>
 			from _ in WhitespaceChar.OneOrMore ()
-			select string.Empty;
+			select result;
 
 		public static readonly Parser<string, char> SpacesOrTabs =
 			from s in OneOf (' ', '\t').OneOrMore ()
@@ -169,7 +169,7 @@
 
 		public static Parser<T, char> Token<T> (this Parser<T, char> parser) =>
 			from v in parser
-			from _ in WhiteSpace
+			from _ in WhiteSpace ()
 			select v;
 
 		public static string AsString (this List<char> list)

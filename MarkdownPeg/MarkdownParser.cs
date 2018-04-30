@@ -206,7 +206,7 @@
 			var AtxStart =
 				(from ni in NonindentSpace
 				 from cs in SP.Char ('#').Occurrences (1, 6)
-				 from ws in SP.WhiteSpace.And ()
+				 from ws in SP.WhiteSpace ().And ()
 				 select cs.Count ())
 				.Trace ("AtxStart");
 

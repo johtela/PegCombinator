@@ -215,5 +215,11 @@
 			"[foo *bar](baz*)", 
 			"<p><a href=\"baz*\">foo *bar</a></p>");
 
+		/* [Example 494](http://spec.commonmark.org/0.28/#example-494) */
+		[TestMethod]
+		public void Example494 () => TestParse (
+			"*foo [bar* baz]", 
+			"<p><em>foo [bar</em> baz]</p>");
+
 	}
 }
