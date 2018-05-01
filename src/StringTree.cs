@@ -1,5 +1,6 @@
 ﻿namespace PegCombinator
 {
+	using System;
 	using System.Collections.Generic;
 	using System.Linq;
 	using System.Text;
@@ -75,6 +76,21 @@
 			}
 		}
 
+		internal class LazyNode : StringTree
+		{
+			public readonly Func<StringTree> GetValue;
+
+			public LazyNode (Func<StringTree> getValue)
+			{
+				GetValue = getValue;
+			}
+
+			protected override void Output (StringBuilder sb)
+			{
+				GetValue ().Output (sb);
+			}
+		}
+
 		public bool IsLeaf () =>
 			this is Leaf;
 
@@ -110,6 +126,9 @@
 
 		public static StringTree From (params StringTree[] values) =>
 			StringTreeHelpers.FromEnumerable (values);
+
+		public static StringTree Lazy (Func<StringTree> getValue) => 
+			new LazyNode (getValue);
 	}
 
 	public static class StringTreeHelpers

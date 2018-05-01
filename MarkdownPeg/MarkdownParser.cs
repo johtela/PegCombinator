@@ -77,30 +77,42 @@
 		/*
 		## Parsing State
 		*/
+		private class LinkReference
+		{
+			public readonly string Label;
+			public readonly string Destination;
+			public readonly string Title;
+
+			public LinkReference (string label, string dest, string title)
+			{
+				Label = label;
+				Destination = dest;
+				Title = title;
+			}
+		}
+
 		private class ParseState
 		{
 			private Stack<Parser<char, char>> _stopChars =
 				new Stack<Parser<char, char>> ();
+			private Dictionary<string, LinkReference> _linkReferences =
+				new Dictionary<string, LinkReference> ();
 
-			public ParseState ()
-			{
+			public ParseState () => 
 				_stopChars.Push (Parser.Fail<char, char> ("", ""));
-			}
 
-			public void PushStop (Parser<char, char> parser)
-			{
+			public void PushStop (Parser<char, char> parser) => 
 				_stopChars.Push (parser);
-			}
 
-			public void PopStop ()
-			{
-				_stopChars.Pop ();
-			}
+			public void PopStop () => _stopChars.Pop ();
 
-			public Parser<char, char> StopOnChar
-			{
-				get => _stopChars.Peek ();
-			}
+			public Parser<char, char> StopOnChar => 
+				_stopChars.Peek ();
+
+			public void AddLinkReference (string label, string dest, 
+				string title) => 
+				_linkReferences.Add (label,
+					new LinkReference (label, dest, title));
 		}
 
 		/*
@@ -130,6 +142,13 @@
 				(from sp in SP.Char (' ').Occurrences (0, 3)
 				 select sp.AsString ())
 				.Trace ("NonindentSpace");
+
+			var OptionalWsWithUpTo1NL =
+				(from ws1 in OptionalSpace
+				 from nl in SP.NewLine.Optional ("")
+				 from ws2 in OptionalSpace
+				 select ws1 + nl + ws2)
+				.Trace ("WsWithUpTo1NL");
 			/*
 			### Text Lines
 			*/
@@ -207,7 +226,7 @@
 			var AtxStart =
 				(from ni in NonindentSpace
 				 from cs in SP.Char ('#').Occurrences (1, 6)
-				 from ws in SP.WhiteSpace ().And ()
+				 from ws in SP.Whitespace ().And ()
 				 select cs.Count ())
 				.Trace ("AtxStart");
 
@@ -469,7 +488,8 @@
 				 select head + nested + tail)
 				.Trace ("LinkDestNormal");
 
-			var LinkDest = LinkDestAngle.Or (LinkDestNormal).Trace ("LinkDest");
+			var LinkDestination = 
+				LinkDestAngle.Or (LinkDestNormal).Trace ("LinkDestination");
 
 			Parser<string, char> LTitle (char open, char close) =>
 				(from oq in SP.Char (open)
@@ -490,7 +510,7 @@
 				 from text in LinkText
 				 from op in SP.Char ('(')
 				 from ws1 in SP.WhitespaceChar.ZeroOrMore ()
-				 from dest in LinkDest.OptionalRef ()
+				 from dest in LinkDestination.OptionalRef ()
 				 from ws2 in SP.WhitespaceChar.ZeroOrMore ()
 				 from title in LinkTitle.OptionalRef ()
 				 from ws3 in SP.WhitespaceChar.ZeroOrMore ()
@@ -499,6 +519,38 @@
 				 select Link (startPos, endPos, text,
 					 DecodeUri (dest), DecodeLinkTitle (title)))
 				.Trace ("InlineLink");
+			/*
+			##### Full Reference Links
+			*/
+			var LinkLabel =
+				(from op in SP.Char ('[')
+				 from ws1 in SP.Whitespace ().Optional ("")
+				 from chs in Brackets.Not ()
+					.Then (EscapedChar
+						.Or (SP.NonWhitespaceChar)
+						.OneOrMore ()
+						.ToStringParser ())
+					.Or (SP.Whitespace (" "))
+					.OneOrMore ()
+				 from ws2 in SP.Whitespace ().Optional ("")
+				 from cp in SP.Char (']')
+				 select chs.ToString ("", "", ""))
+				 .Trace ("LinkLabel");
+
+			var LinkReferenceDefinition =
+				(from ni in NonindentSpace
+				 from label in LinkLabel
+				 from col in SP.Char (':')
+				 from ws1 in OptionalWsWithUpTo1NL
+				 from dest in LinkDestination
+				 from ws2 in OptionalWsWithUpTo1NL
+				 from title in LinkTitle.OptionalRef ()
+				 from ws3 in OptionalSpace
+				 from nl in SP.NewLine
+				 from _ in Parser.ModifyState<ParseState, char> (st => 
+					st.AddLinkReference (label, dest, title))
+				 select StringTree.Empty)
+				.Trace ("LinkReferenceDefinition");
 			/*
 			#### Main Inline Selector
 			*/
@@ -603,6 +655,7 @@
 					 .Or (AtxHeading)
 					 .Or (SetextHeading)
 					 .Or (ThemaBreak)
+					 .Or (LinkReferenceDefinition)
 					 .Or (Para)
 				 from endPos in Parser.Position<char> ()
 				 select Block (startPos, endPos, block))

@@ -139,7 +139,7 @@
 		/// from the sequence and returns an empty string. Note that the parser
 		/// expects find some whitespace, or else it fails.
 		/// </summary>
-		public static Parser<string, char> WhiteSpace (string result = "") =>
+		public static Parser<string, char> Whitespace (string result = "") =>
 			from _ in WhitespaceChar.OneOrMore ()
 			select result;
 
@@ -169,7 +169,7 @@
 
 		public static Parser<T, char> Token<T> (this Parser<T, char> parser) =>
 			from v in parser
-			from _ in WhiteSpace ()
+			from _ in Whitespace ()
 			select v;
 
 		public static string AsString (this List<char> list)
@@ -179,6 +179,10 @@
 				res.Append (list[i]);
 			return res.ToString ();
 		}
+
+		public static Parser<string, char> ToStringParser (
+			this Parser<List<char>, char> parser) => 
+			parser.Select (AsString);
 
 		public static string EscapeWhitespace (this char chr)
 		{
