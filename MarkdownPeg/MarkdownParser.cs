@@ -72,8 +72,7 @@
 			Uri.UnescapeDataString (WebUtility.HtmlDecode (uri));
 
 		private string DecodeLinkTitle (string title) =>
-			WebUtility.HtmlDecode (title);
-
+			title == null ? null : WebUtility.HtmlDecode (title);
 		/*
 		## Parsing State
 		*/
@@ -113,6 +112,10 @@
 				string title) => 
 				_linkReferences.Add (label,
 					new LinkReference (label, dest, title));
+
+			public LinkReference GetLinkReference (string label) =>
+				_linkReferences.TryGetValue (label, out var res) ?
+					res : null;
 		}
 
 		/*
@@ -222,6 +225,9 @@
 			#### Determination Rules
 			*/
 			var NotAtEnd = SP.AnyChar.Trace ("NotAtEnd");
+
+			Parser<string, char> AtEnd (string res) =>
+				SP.AnyChar.Not ().Select (_ => res);
 
 			var AtxStart =
 				(from ni in NonindentSpace
@@ -433,18 +439,18 @@
 				 select il.FromEnumerable ())
 				.Trace ("LinkInlines");
 
-			var InlineLink = new Ref<Parser<StringTree, char>> ();
+			var AnyLink = new Ref<Parser<StringTree, char>> ();
 			var LinkTextNested = new Ref<Parser<StringTree, char>> ();
 
 			LinkTextNested.Target =
 				(from op in SP.Char ('[')
 				 from ilb in LinkInlines
-				 from lt in InlineLink.ForwardRef ().Not ()
+				 from lt in AnyLink.ForwardRef ().Not ()
 					 .Then (LinkTextNested.ForwardRef ().OptionalRef ())
 				 from ile in LinkInlines
 				 from cp in SP.Char (']')
 				 select ilb + (lt == null ? "" : "[" + lt + "]") + ile)
-				.Trace ("NestedLinkText");
+				.Trace ("LinkTextNested");
 
 			var LinkText =
 				Parser.ModifyState<ParseState, char> (st =>
@@ -505,10 +511,9 @@
 				.Or (LTitle ('(', ')'))
 				.Trace ("LinkTitle");
 
-			InlineLink.Target =
-				(from startPos in Parser.Position<char> ()
-				 from text in LinkText
-				 from op in SP.Char ('(')
+			Parser<StringTree, char> InlineLink (long startPos,
+				StringTree text) =>
+				(from op in SP.Char ('(')
 				 from ws1 in SP.WhitespaceChar.ZeroOrMore ()
 				 from dest in LinkDestination.OptionalRef ()
 				 from ws2 in SP.WhitespaceChar.ZeroOrMore ()
@@ -524,18 +529,41 @@
 			*/
 			var LinkLabel =
 				(from op in SP.Char ('[')
-				 from ws1 in SP.Whitespace ().Optional ("")
-				 from chs in Brackets.Not ()
-					.Then (EscapedChar
-						.Or (SP.NonWhitespaceChar)
+				 from ws in SP.Whitespace ().Optional ("")
+				 from chs in (
+						Brackets.Not ()
+						.Then (EscapedChar.Or (SP.NonWhitespaceChar))
 						.OneOrMore ()
 						.ToStringParser ())
 					.Or (SP.Whitespace (" "))
 					.OneOrMore ()
-				 from ws2 in SP.Whitespace ().Optional ("")
 				 from cp in SP.Char (']')
-				 select chs.ToString ("", "", ""))
+				 select chs.ToString ("", "", "").TrimEnd ())
 				 .Trace ("LinkLabel");
+
+			Parser<StringTree, char> FullReferenceLink (long startPos, 
+				StringTree text) =>
+				(from label in LinkLabel
+				 from endPos in Parser.Position<char> ()
+				 from st in Parser.GetState<ParseState, char> ()
+				 select StringTree.Lazy (() =>
+				 {
+					 var linkRef = st.GetLinkReference (label);
+					 return linkRef == null ?
+						text + label :
+						Link (startPos, endPos, text, 
+							DecodeUri (linkRef.Destination),
+							DecodeLinkTitle (linkRef.Title));
+				 }))
+				.Trace ("FullReferenceLink");
+
+			AnyLink.Target =
+				(from startPos in Parser.Position<char> ()
+				 from text in LinkText
+				 from res in InlineLink (startPos, text)
+					 .Or (FullReferenceLink (startPos, text))
+				 select res)
+				.Trace ("AnyLink");
 
 			var LinkReferenceDefinition =
 				(from ni in NonindentSpace
@@ -546,7 +574,7 @@
 				 from ws2 in OptionalWsWithUpTo1NL
 				 from title in LinkTitle.OptionalRef ()
 				 from ws3 in OptionalSpace
-				 from nl in SP.NewLine
+				 from end in SP.NewLine.Or (AtEnd (""))
 				 from _ in Parser.ModifyState<ParseState, char> (st => 
 					st.AddLinkReference (label, dest, title))
 				 select StringTree.Empty)
@@ -558,7 +586,7 @@
 				(from st in Parser.GetState<ParseState, char> ()
 				 from inline in st.StopOnChar.Not ()
 				 .Then (LineBreak
-				 .Or (InlineLink)
+				 .Or (AnyLink)
 				 .Or (Emphasized)
 				 .Or (SpaceBetweenWords)
 				 .Or (from c in EscapedChar

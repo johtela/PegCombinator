@@ -309,15 +309,20 @@
 				return parser;
 			IParserInput<S> lastInput = null;
 			ParseResult<T> lastResult = null;
-			long lastPos = long.MinValue;
+			long posBefore = long.MinValue;
+			long posAfter = long.MinValue;
 			return input =>
 			{
 				var pos = input.Position;
-				if (input == lastInput && pos == lastPos && 
+				if (input == lastInput && pos == posBefore && 
 					lastResult != null)
+				{
+					input.Position = posAfter;
 					return lastResult;
-				lastPos = pos;
+				}
+				posBefore = pos;
 				lastResult = parser (input);
+				posAfter = input.Position;
 				return lastResult;
 			};
 		}

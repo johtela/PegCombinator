@@ -60,15 +60,20 @@
 			{
 				if (OpenDelimiter != null)
 					OpenDelimiter.Output (sb);
-				var first = Values.FirstOrDefault ();
-				if (first != null)
-				{
-					first.Output (sb);
-					foreach (var value in Values.Skip (1))
-					{
-						if (Separator != null)
-							Separator.Output (sb);
+				if (Separator == null)
+					foreach (var value in Values)
 						value.Output (sb);
+				else
+				{
+					var first = Values.FirstOrDefault ();
+					if (first != null)
+					{
+						first.Output (sb);
+						foreach (var value in Values.Skip (1))
+						{
+							Separator.Output (sb);
+							value.Output (sb);
+						}
 					}
 				}
 				if (CloseDelimiter != null)
@@ -79,6 +84,7 @@
 		internal class LazyNode : StringTree
 		{
 			public readonly Func<StringTree> GetValue;
+			public StringTree Value;
 
 			public LazyNode (Func<StringTree> getValue)
 			{
@@ -87,7 +93,9 @@
 
 			protected override void Output (StringBuilder sb)
 			{
-				GetValue ().Output (sb);
+				if (Value == null)
+					Value = GetValue ();
+				Value.Output (sb);
 			}
 		}
 
