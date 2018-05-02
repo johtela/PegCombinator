@@ -538,7 +538,7 @@
 					.Or (SP.Whitespace (" "))
 					.OneOrMore ()
 				 from cp in SP.Char (']')
-				 select chs.ToString ("", "", "").TrimEnd ())
+				 select chs.ToString ("", "", "").TrimEnd ().ToLower ())
 				 .Trace ("LinkLabel");
 
 			Parser<StringTree, char> FullReferenceLink (long startPos, 
