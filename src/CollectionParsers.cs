@@ -8,28 +8,26 @@
 
     public static class CollectionParsers
     {
-		public static Parser<List<T>, T> List<T> (params T[] items)
+		public static Parser<E, T> List<E, T> (E expect) where E : IEnumerable<T>
 		{
 			return input =>
 			{
-				var list = new List<T> ();
 				var pos = input.Position;
-				for (var i = 0; i < items.Length; i++)
+				foreach (var e in expect)
 				{
 					if (!input.MoveNext ())
 					{
 						input.Position = pos;
-						return ParseResult<List<T>>.Failed (input.Position, "end of input");
+						return ParseResult<E>.Failed (input.Position, "end of input");
 					}
 					var item = input.Current;
-					if (!item.Equals (items[i]))
+					if (!item.Equals (e))
 					{
 						input.Position = pos;
-						return ParseResult<List<T>>.Failed (input.Position, item.ToString ());
+						return ParseResult<E>.Failed (input.Position, item.ToString ());
 					}
-					list.Add (item);
 				}
-				return ParseResult<List<T>>.Succeeded (input.Position, list);
+				return ParseResult<E>.Succeeded (input.Position, expect);
 			};
 		}
 

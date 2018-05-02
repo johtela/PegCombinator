@@ -104,18 +104,10 @@
 		}
 
 		/// <summary>
-		/// Parse a given sequence of characters.
-		/// </summary>
-		private static Parser<string, char> StringChars (string str, int index) => 
-			index >= str.Length ?
-				str.ToParser<string, char> () :
-				Char (str[index]).Then (StringChars (str, index + 1));
-
-		/// <summary>
 		/// Parse a given string.
 		/// </summary>
 		public static Parser<string, char> String (string str) => 
-			StringChars (str, 0).Expect (str);
+			CollectionParsers.List<string, char> (str).Expect (str);
 
 		/// <summary>
 		/// Parse a positive integer without a leading '+' character.

@@ -123,7 +123,7 @@
 		*/
 		private Parser<StringTree, char> Doc ()
 		{
-			Parser.Debugging = false;
+			Parser.Debugging = true;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -550,18 +550,37 @@
 				 {
 					 var linkRef = st.GetLinkReference (label);
 					 return linkRef == null ?
-						text + label :
+						StringTree.From ("[", text, "][", label, "]") :
 						Link (startPos, endPos, text, 
 							DecodeUri (linkRef.Destination),
 							DecodeLinkTitle (linkRef.Title));
 				 }))
 				.Trace ("FullReferenceLink");
 
+			Parser<StringTree, char> CollapsedOrShortcutReferenceLink (
+				long startPos, StringTree text) =>
+				(from _ in Parser.Backtrack<char> (startPos)
+				 from label in LinkLabel
+				 from brackets in SP.String ("[]").OptionalRef ()
+				 from endPos in Parser.Position<char> ()
+				 from st in Parser.GetState<ParseState, char> ()
+				 select StringTree.Lazy (() =>
+				 {
+					 var linkRef = st.GetLinkReference (label);
+					 return linkRef == null ?
+						StringTree.From ("[", text, "]") :
+						Link (startPos, endPos, text,
+							DecodeUri (linkRef.Destination),
+							DecodeLinkTitle (linkRef.Title));
+				 }))
+				.Trace ("CollapsedOrShortcutReferenceLink");
+
 			AnyLink.Target =
 				(from startPos in Parser.Position<char> ()
 				 from text in LinkText
 				 from res in InlineLink (startPos, text)
 					 .Or (FullReferenceLink (startPos, text))
+					 .Or (CollapsedOrShortcutReferenceLink (startPos, text))
 				 select res)
 				.Trace ("AnyLink");
 

@@ -13,6 +13,7 @@
     {
 		public static bool UseMemoization { get; set; }
 		public static bool Debugging { get; set; }
+		public static bool ErrorMessages { get; set; }
 		public static int RulesEvaluated
 		{
 			get => _rulesEvaluated;
@@ -141,6 +142,8 @@
 
         public static Parser<T, S> Expect<T, S> (this Parser<T, S> parser, string expected)
         {
+			if (!ErrorMessages)
+				return parser;
             return input =>
             {
                 var res = parser (input);
@@ -301,6 +304,16 @@
 		public static Parser<long, S> Position<S> ()
 		{
 			return input => ParseResult<long>.Succeeded (input.Position, input.Position);
+		}
+
+		public static Parser<long, S> Backtrack<S> (long position)
+		{
+			return input =>
+			{
+				var res = input.Position;
+				input.Position = position;
+				return ParseResult<long>.Succeeded (position, res);
+			};
 		}
 
 		public static Parser<T, S> Memoize<T, S> (this Parser<T, S> parser)
