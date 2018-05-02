@@ -92,21 +92,25 @@
 
 		private class ParseState
 		{
-			private Stack<Parser<char, char>> _stopChars =
-				new Stack<Parser<char, char>> ();
+			private int _linkLevel = 0;
+			private bool _linkParsed = false;
 			private Dictionary<string, LinkReference> _linkReferences =
 				new Dictionary<string, LinkReference> ();
 
-			public ParseState () => 
-				_stopChars.Push (Parser.Fail<char, char> ("", ""));
+			public void BeginLinkText () => 
+				_linkLevel++;
 
-			public void PushStop (Parser<char, char> parser) => 
-				_stopChars.Push (parser);
+			public bool EndLinkText ()
+			{
+				_linkLevel--;
+				var res = _linkParsed;
+				if (_linkLevel == 0)
+					_linkParsed = false;
+				return res;
+			}
 
-			public void PopStop () => _stopChars.Pop ();
-
-			public Parser<char, char> StopOnChar => 
-				_stopChars.Peek ();
+			public void LinkParsed () =>
+				_linkParsed = true;
 
 			public void AddLinkReference (string label, string dest, 
 				string title) => 
@@ -123,7 +127,7 @@
 		*/
 		private Parser<StringTree, char> Doc ()
 		{
-			Parser.Debugging = true;
+			Parser.Debugging = false;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -445,16 +449,18 @@
 			LinkTextNested.Target =
 				(from op in SP.Char ('[')
 				 from ilb in LinkInlines
-				 from lt in AnyLink.ForwardRef ().Not ()
-					 .Then (LinkTextNested.ForwardRef ().OptionalRef ())
+				 from lt in LinkTextNested.ForwardRef ().OptionalRef ()
 				 from ile in LinkInlines
 				 from cp in SP.Char (']')
 				 select ilb + (lt == null ? "" : "[" + lt + "]") + ile)
 				.Trace ("LinkTextNested");
 
 			var LinkText =
-				Parser.ModifyState<ParseState, char> (st =>
-					st.PushStop (Brackets))
+				(from op in SP.Char ('[')
+				 from 
+				 from ilb in LinkInlines
+ 				Parser.ModifyState<ParseState, char> (st =>
+					st.BeginLinkText ())
 				.Then (LinkTextNested.Target)
 				.CleanupState<StringTree, ParseState, char> (st =>
 					st.PopStop ())
