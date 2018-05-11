@@ -22,64 +22,23 @@
 			}
 		}
 
-		internal class ConcatNode : StringTree
-		{
-			public readonly StringTree Left;
-			public readonly StringTree Right;
-
-			public ConcatNode (StringTree left, StringTree right)
-			{
-				Left = left;
-				Right = right;
-			}
-
-			protected override void Output (StringBuilder sb)
-			{
-				Left.Output (sb);
-				Right.Output (sb);
-			}
-		}
-
 		internal class ListNode : StringTree
 		{
 			public readonly IEnumerable<StringTree> Values;
-			public readonly StringTree OpenDelimiter;
-			public readonly StringTree CloseDelimiter;
-			public readonly StringTree Separator;
 
-			public ListNode (IEnumerable<StringTree> values, StringTree open,
-				StringTree close, StringTree separator)
+			public ListNode (IEnumerable<StringTree> values)
 			{
 				Values = values;
-				OpenDelimiter = open;
-				CloseDelimiter = close;
-				Separator = separator;
 			}
 
 			protected override void Output (StringBuilder sb)
 			{
-				if (OpenDelimiter != null)
-					OpenDelimiter.Output (sb);
-				if (Separator == null)
-					foreach (var value in Values)
-						value.Output (sb);
-				else
-				{
-					var first = Values.FirstOrDefault ();
-					if (first != null)
-					{
-						first.Output (sb);
-						foreach (var value in Values.Skip (1))
-						{
-							Separator.Output (sb);
-							value.Output (sb);
-						}
-					}
-				}
-				if (CloseDelimiter != null)
-					CloseDelimiter.Output (sb);
+				foreach (var value in Values)
+					value.Output (sb);
 			}
 		}
+
+		// TODO: Add tag node, to tag a node as link.
 
 		internal class LazyNode : StringTree
 		{
@@ -130,7 +89,7 @@
 			new Leaf (new string (value, 1));
 
 		public static StringTree operator + (StringTree left, StringTree right) =>
-			new ConcatNode (left, right);
+			From (left, right);
 
 		public static StringTree From (params StringTree[] values) =>
 			StringTreeHelpers.FromEnumerable (values);
@@ -141,13 +100,10 @@
 
 	public static class StringTreeHelpers
 	{
-		public static StringTree FromEnumerable (this IEnumerable<StringTree> values,
-			StringTree open = null, StringTree close = null, StringTree separator = null) =>
-			new StringTree.ListNode (values, open, close, separator);
+		public static StringTree FromEnumerable (this IEnumerable<StringTree> values) =>
+			new StringTree.ListNode (values);
 
-		public static StringTree FromEnumerable (this IEnumerable<string> values,
-			StringTree open = null, StringTree close = null, StringTree separator = null) =>
-			new StringTree.ListNode (values.Select (v => new StringTree.Leaf (v)), 
-				open, close, separator);
+		public static StringTree FromEnumerable (this IEnumerable<string> values) =>
+			new StringTree.ListNode (values.Select (v => new StringTree.Leaf (v)));
 	}
 }

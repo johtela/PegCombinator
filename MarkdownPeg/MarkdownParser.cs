@@ -92,25 +92,8 @@
 
 		private class ParseState
 		{
-			private int _linkLevel = 0;
-			private bool _linkParsed = false;
 			private Dictionary<string, LinkReference> _linkReferences =
 				new Dictionary<string, LinkReference> ();
-
-			public void BeginLinkText () => 
-				_linkLevel++;
-
-			public bool EndLinkText ()
-			{
-				_linkLevel--;
-				var res = _linkParsed;
-				if (_linkLevel == 0)
-					_linkParsed = false;
-				return res;
-			}
-
-			public void LinkParsed () =>
-				_linkParsed = true;
 
 			public void AddLinkReference (string label, string dest, 
 				string title) => 
@@ -436,34 +419,11 @@
 			*/
 			var Brackets = SP.OneOf ('[', ']');
 
-			var LinkInlines =
-				(from il in Brackets.Not ()
-					.Then (Inline.ForwardRef ())
-					.ZeroOrMore ()
-				 select il.FromEnumerable ())
-				.Trace ("LinkInlines");
-
-			var AnyLink = new Ref<Parser<StringTree, char>> ();
-			var LinkTextNested = new Ref<Parser<StringTree, char>> ();
-
-			LinkTextNested.Target =
-				(from op in SP.Char ('[')
-				 from ilb in LinkInlines
-				 from lt in LinkTextNested.ForwardRef ().OptionalRef ()
-				 from ile in LinkInlines
-				 from cp in SP.Char (']')
-				 select ilb + (lt == null ? "" : "[" + lt + "]") + ile)
-				.Trace ("LinkTextNested");
-
 			var LinkText =
 				(from op in SP.Char ('[')
-				 from 
-				 from ilb in LinkInlines
- 				Parser.ModifyState<ParseState, char> (st =>
-					st.BeginLinkText ())
-				.Then (LinkTextNested.Target)
-				.CleanupState<StringTree, ParseState, char> (st =>
-					st.PopStop ())
+				 from ilb in Inline.ForwardRef ().ZeroOrMore ()
+				 from cp in SP.Char (']')
+				 select ilb.FromEnumerable ())
 				.Trace ("LinkText");
 
 			var LinkDestAngle =
@@ -581,7 +541,7 @@
 				 }))
 				.Trace ("CollapsedOrShortcutReferenceLink");
 
-			AnyLink.Target =
+			var AnyLink =
 				(from startPos in Parser.Position<char> ()
 				 from text in LinkText
 				 from res in InlineLink (startPos, text)
@@ -608,17 +568,14 @@
 			#### Main Inline Selector
 			*/
 			Inline.Target =
-				(from st in Parser.GetState<ParseState, char> ()
-				 from inline in st.StopOnChar.Not ()
-				 .Then (LineBreak
-				 .Or (AnyLink)
-				 .Or (Emphasized)
-				 .Or (SpaceBetweenWords)
-				 .Or (from c in EscapedChar
-					  select (StringTree)c)
-				 .Or (Punct)
-				 .Or (UnformattedText))
-				 select inline)
+				LineBreak
+				.Or (AnyLink)
+				.Or (Emphasized)
+				.Or (SpaceBetweenWords)
+				.Or (from c in EscapedChar
+					 select (StringTree)c)
+				.Or (Punct)
+				.Or (UnformattedText)
 				.Trace ("Inline");
 
 			var Inlines =
