@@ -38,7 +38,20 @@
 			}
 		}
 
-		// TODO: Add tag node, to tag a node as link.
+		internal class TagNode : StringTree
+		{
+			public readonly string Tag;
+			public readonly StringTree Value;
+
+			public TagNode (string tag, StringTree value)
+			{
+				Tag = tag;
+				Value = value;
+			}
+
+			protected override void Output (StringBuilder sb) => 
+				Value.Output (sb);
+		}
 
 		internal class LazyNode : StringTree
 		{
@@ -105,5 +118,8 @@
 
 		public static StringTree FromEnumerable (this IEnumerable<string> values) =>
 			new StringTree.ListNode (values.Select (v => new StringTree.Leaf (v)));
+
+		public static StringTree Tag (this StringTree value, string tag) =>
+			new StringTree.TagNode (tag, value);
 	}
 }

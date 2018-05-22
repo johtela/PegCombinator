@@ -423,7 +423,7 @@
 				(from op in SP.Char ('[')
 				 from ilb in Inline.ForwardRef ().ZeroOrMore ()
 				 from cp in SP.Char (']')
-				 select ilb.FromEnumerable ())
+				 select ilb.FromEnumerable ().Tag ("link"))
 				.Trace ("LinkText");
 
 			var LinkDestAngle =
