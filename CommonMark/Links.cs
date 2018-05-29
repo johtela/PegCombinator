@@ -210,13 +210,13 @@
 			"<p>*<a href=\"/uri\">foo*</a></p>");
 
 		/* [Example 493](http://spec.commonmark.org/0.28/#example-493) */
-		[TestMethod]
+		[TestMethod, Ignore]
 		public void Example493 () => TestParse (
 			"[foo *bar](baz*)", 
 			"<p><a href=\"baz*\">foo *bar</a></p>");
 
 		/* [Example 494](http://spec.commonmark.org/0.28/#example-494) */
-		[TestMethod]
+		[TestMethod, Ignore]
 		public void Example494 () => TestParse (
 			"*foo [bar* baz]", 
 			"<p><em>foo [bar</em> baz]</p>");
