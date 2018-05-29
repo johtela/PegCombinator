@@ -421,7 +421,9 @@
 
 			var LinkText =
 				(from op in SP.Char ('[')
-				 from ilb in Inline.ForwardRef ().ZeroOrMore ()
+				 from ilb in SP.Char (']').Not ()
+					.Then (Inline.ForwardRef ())
+					.ZeroOrMore ()
 				 from cp in SP.Char (']')
 				 select ilb.FromEnumerable ().Tag ("link"))
 				.Trace ("LinkText");
@@ -525,14 +527,12 @@
 
 			Parser<StringTree, char> CollapsedOrShortcutReferenceLink (
 				long startPos, StringTree text) =>
-				(from _ in Parser.Backtrack<char> (startPos)
-				 from label in LinkLabel
-				 from brackets in SP.String ("[]").OptionalRef ()
+				(from brackets in SP.String ("[]").OptionalRef ()
 				 from endPos in Parser.Position<char> ()
 				 from st in Parser.GetState<ParseState, char> ()
 				 select StringTree.Lazy (() =>
 				 {
-					 var linkRef = st.GetLinkReference (label);
+					 var linkRef = st.GetLinkReference (text.ToString ());
 					 return linkRef == null ?
 						StringTree.From ("[", text, "]") :
 						Link (startPos, endPos, text,
