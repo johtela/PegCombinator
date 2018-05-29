@@ -8,6 +8,7 @@
 	public abstract class StringTree
 	{
 		protected abstract void Output (StringBuilder sb);
+		public abstract bool HasTag (string tag);
 
 		internal class Leaf : StringTree
 		{
@@ -20,6 +21,8 @@
 			{
 				sb.Append (Value);
 			}
+
+			public override bool HasTag (string tag) => false;
 		}
 
 		internal class ListNode : StringTree
@@ -36,6 +39,9 @@
 				foreach (var value in Values)
 					value.Output (sb);
 			}
+
+			public override bool HasTag (string tag) => 
+				Values.Any (v => v.HasTag (tag));
 		}
 
 		internal class TagNode : StringTree
@@ -51,6 +57,9 @@
 
 			protected override void Output (StringBuilder sb) => 
 				Value.Output (sb);
+
+			public override bool HasTag (string tag) => 
+				Tag == tag;
 		}
 
 		internal class LazyNode : StringTree
@@ -68,6 +77,11 @@
 				if (Value == null)
 					Value = GetValue ();
 				Value.Output (sb);
+			}
+
+			public override bool HasTag (string tag)
+			{
+				return Value != null && Value.HasTag (tag);
 			}
 		}
 

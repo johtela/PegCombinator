@@ -425,7 +425,7 @@
 					.Then (Inline.ForwardRef ())
 					.ZeroOrMore ()
 				 from cp in SP.Char (']')
-				 select ilb.FromEnumerable ().Tag ("link"))
+				 select ilb.FromEnumerable ())
 				.Trace ("LinkText");
 
 			var LinkDestAngle =
@@ -465,13 +465,14 @@
 			var LinkDestination = 
 				LinkDestAngle.Or (LinkDestNormal).Trace ("LinkDestination");
 
-			Parser<string, char> LTitle (char open, char close) =>
+			Parser<Tuple<string, StringTree>, char> LTitle (char open, char close) =>
 				(from oq in SP.Char (open)
 				from chs in SP.BlankLine ().Not ().Then (
 					EscapedChar.Or (SP.NoneOf (close))
 					.ZeroOrMore ())
 				from cq in SP.Char (close)
-				select chs.AsString ())
+				let title = chs.AsString ()
+				 select Tuple.Create (title, StringTree.From (open, title, close)))
 				.Trace (string.Format ("LinkTitle {0}...{1}", open, close));
 
 			var LinkTitle = LTitle ('\'', '\'')
@@ -489,8 +490,13 @@
 				 from ws3 in SP.WhitespaceChar.ZeroOrMore ()
 				 from cp in SP.Char (')')
 				 from endPos in Parser.Position<char> ()
-				 select Link (startPos, endPos, text,
-					 DecodeUri (dest), DecodeLinkTitle (title)))
+				 select text.HasTag ("link") ?
+					StringTree.From ('[', text, ']', '(', 
+						ws1.AsString (), dest, ws2.AsString (),
+						title == null ? "" : title.Item2, ws3.AsString (), ')') :
+					Link (startPos, endPos, text,
+						 DecodeUri (dest), DecodeLinkTitle (title?.Item1))
+						.Tag ("link"))
 				.Trace ("InlineLink");
 			/*
 			##### Full Reference Links
@@ -561,7 +567,7 @@
 				 from ws3 in OptionalSpace
 				 from end in SP.NewLine.Or (AtEnd (""))
 				 from _ in Parser.ModifyState<ParseState, char> (st => 
-					st.AddLinkReference (label, dest, title))
+					st.AddLinkReference (label, dest, title?.Item1))
 				 select StringTree.Empty)
 				.Trace ("LinkReferenceDefinition");
 			/*
