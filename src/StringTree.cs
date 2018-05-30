@@ -59,7 +59,7 @@
 				Value.Output (sb);
 
 			public override bool HasTag (string tag) => 
-				Tag == tag;
+				Tag == tag || Value.HasTag (tag);
 		}
 
 		internal class LazyNode : StringTree
@@ -72,16 +72,22 @@
 				GetValue = getValue;
 			}
 
-			protected override void Output (StringBuilder sb)
+			private void ForceValue ()
 			{
 				if (Value == null)
 					Value = GetValue ();
+			}
+
+			protected override void Output (StringBuilder sb)
+			{
+				ForceValue ();
 				Value.Output (sb);
 			}
 
 			public override bool HasTag (string tag)
 			{
-				return Value != null && Value.HasTag (tag);
+				ForceValue ();
+				return Value.HasTag (tag);
 			}
 		}
 

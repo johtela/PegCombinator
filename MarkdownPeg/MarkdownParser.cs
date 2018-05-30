@@ -515,19 +515,32 @@
 				 select chs.ToString ("", "", "").TrimEnd ().ToLower ())
 				 .Trace ("LinkLabel");
 
+
+			StringTree NewShortcutLink (long startPos, long endPos, string label, ParseState st)
+			{
+				var linkRef = st.GetLinkReference (label);
+				return linkRef == null ?
+					StringTree.From ("[", label, "]") :
+					Link (startPos, endPos, label,
+						DecodeUri (linkRef.Destination),
+						DecodeLinkTitle (linkRef.Title));
+			}
+
 			Parser<StringTree, char> FullReferenceLink (long startPos, 
 				StringTree text) =>
-				(from label in LinkLabel
+				(from labelStart in Parser.Position<char> ()
+				 from label in LinkLabel
 				 from endPos in Parser.Position<char> ()
 				 from st in Parser.GetState<ParseState, char> ()
 				 select StringTree.Lazy (() =>
 				 {
 					 var linkRef = st.GetLinkReference (label);
-					 return linkRef == null ?
-						StringTree.From ("[", text, "][", label, "]") :
+					 return text.HasTag ("link") || linkRef == null ?
+						StringTree.From ("[", text, "]", NewShortcutLink (labelStart, endPos, label, st)) :
 						Link (startPos, endPos, text, 
 							DecodeUri (linkRef.Destination),
-							DecodeLinkTitle (linkRef.Title));
+							DecodeLinkTitle (linkRef.Title))
+							.Tag ("link");
 				 }))
 				.Trace ("FullReferenceLink");
 
@@ -536,15 +549,8 @@
 				(from brackets in SP.String ("[]").OptionalRef ()
 				 from endPos in Parser.Position<char> ()
 				 from st in Parser.GetState<ParseState, char> ()
-				 select StringTree.Lazy (() =>
-				 {
-					 var linkRef = st.GetLinkReference (text.ToString ());
-					 return linkRef == null ?
-						StringTree.From ("[", text, "]") :
-						Link (startPos, endPos, text,
-							DecodeUri (linkRef.Destination),
-							DecodeLinkTitle (linkRef.Title));
-				 }))
+				 select StringTree.Lazy (() => 
+					NewShortcutLink (startPos, endPos, text.ToString (), st)))
 				.Trace ("CollapsedOrShortcutReferenceLink");
 
 			var AnyLink =
