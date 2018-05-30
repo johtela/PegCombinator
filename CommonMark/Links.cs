@@ -340,5 +340,48 @@
 		public void Example514 () => TestParse (
 			"[foo]\n[bar]\n\n[bar]: /url \"title\"", 
 			"<p>[foo]\n<a href=\"/url\" title=\"title\">bar</a></p>");
+
+		/* [Example 515](http://spec.commonmark.org/0.28/#example-515) */
+		[TestMethod]
+		public void Example515 () => TestParse (
+			"[foo]: /url1\n\n[foo]: /url2\n\n[bar][foo]", 
+			"<p><a href=\"/url1\">bar</a></p>");
+
+		/* [Example 516](http://spec.commonmark.org/0.28/#example-516) */
+		[TestMethod]
+		public void Example516 () => TestParse (
+			"[bar][foo\\!]\n\n[foo!]: /url", 
+			"<p>[bar][foo!]</p>");
+
+		/* [Example 517](http://spec.commonmark.org/0.28/#example-517) */
+		[TestMethod]
+		public void Example517 () => TestParse (
+			"[foo][ref[]\n\n[ref[]: /uri", 
+			"<p>[foo][ref[]</p>\n<p>[ref[]: /uri</p>");
+
+		/* [Example 518](http://spec.commonmark.org/0.28/#example-518) */
+		[TestMethod]
+		public void Example518 () => TestParse (
+			"[foo][ref[bar]]\n\n[ref[bar]]: /uri", 
+			"<p>[foo][ref[bar]]</p>\n<p>[ref[bar]]: /uri</p>");
+
+		/* [Example 519](http://spec.commonmark.org/0.28/#example-519) */
+		[TestMethod]
+		public void Example519 () => TestParse (
+			"[[[foo]]]\n\n[[[foo]]]: /url", 
+			"<p>[[[foo]]]</p>\n<p>[[[foo]]]: /url</p>");
+
+		/* [Example 520](http://spec.commonmark.org/0.28/#example-520) */
+		[TestMethod]
+		public void Example520 () => TestParse (
+			"[foo][ref\\[]\n\n[ref\\[]: /uri", 
+			"<p><a href=\"/uri\">foo</a></p>");
+
+		/* [Example 521](http://spec.commonmark.org/0.28/#example-521) */
+		[TestMethod]
+		public void Example521 () => TestParse (
+			"[bar\\\\]: /uri\n\n[bar\\\\]", 
+			"<p><a href=\"/uri\">bar\\</a></p>");
+
 	}
 }

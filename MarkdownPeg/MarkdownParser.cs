@@ -4,6 +4,7 @@
 	using System.Collections.Generic;
 	using System.Linq;
 	using System.Net;
+	using System.Text;
 	using ExtensionCord;
 	using PegCombinator;
 	using SP = PegCombinator.StringParser;
@@ -73,6 +74,21 @@
 
 		private string DecodeLinkTitle (string title) =>
 			title == null ? null : WebUtility.HtmlDecode (title);
+
+		private string EscapeBackslashes (string str)
+		{
+			var res = new StringBuilder ();
+			var i = 0;
+			while (i < str.Length)
+				if (str[i] == '\\' && i < str.Length - 1)
+				{
+					res.Append (str[i + 1]);
+					i += 2;
+				}
+				else
+					res.Append (str[i++]);
+			return res.ToString ();
+		}
 		/*
 		## Parsing State
 		*/
@@ -95,10 +111,13 @@
 			private Dictionary<string, LinkReference> _linkReferences =
 				new Dictionary<string, LinkReference> ();
 
-			public void AddLinkReference (string label, string dest, 
-				string title) => 
-				_linkReferences.Add (label,
-					new LinkReference (label, dest, title));
+			public void AddLinkReference (string label, string dest,
+				string title)
+			{
+				if (!_linkReferences.ContainsKey (label))
+					_linkReferences.Add (label,
+						new LinkReference (label, dest, title));
+			}
 
 			public LinkReference GetLinkReference (string label) =>
 				_linkReferences.TryGetValue (label, out var res) ?
@@ -281,6 +300,9 @@
 					 '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~')
 				 select sc)
 				.Trace ("EscapedChar");
+
+			var EscapedCharWithBackslash =
+				EscapedChar.Select (ch => "\\" + ch);
 			/*
 			#### Unformatted Text
 			*/
@@ -505,28 +527,18 @@
 				(from op in SP.Char ('[')
 				 from ws in SP.Whitespace ().Optional ("")
 				 from chs in (
-						Brackets.Not ()
-						.Then (EscapedChar.Or (SP.NonWhitespaceChar))
-						.OneOrMore ()
-						.ToStringParser ())
-					.Or (SP.Whitespace (" "))
+					Brackets.Not ()
+					.Then (
+						EscapedCharWithBackslash
+						.Or (SP.NonWhitespaceChar.ToStringParser ())))
+						.Or (SP.Whitespace (" "))
 					.OneOrMore ()
+				 where !chs.All (string.IsNullOrWhiteSpace)
 				 from cp in SP.Char (']')
 				 select chs.ToString ("", "", "").TrimEnd ().ToLower ())
 				 .Trace ("LinkLabel");
 
-
-			StringTree NewShortcutLink (long startPos, long endPos, string label, ParseState st)
-			{
-				var linkRef = st.GetLinkReference (label);
-				return linkRef == null ?
-					StringTree.From ("[", label, "]") :
-					Link (startPos, endPos, label,
-						DecodeUri (linkRef.Destination),
-						DecodeLinkTitle (linkRef.Title));
-			}
-
-			Parser<StringTree, char> FullReferenceLink (long startPos, 
+			Parser<StringTree, char> FullReferenceLink (long startPos,
 				StringTree text) =>
 				(from labelStart in Parser.Position<char> ()
 				 from label in LinkLabel
@@ -535,22 +547,43 @@
 				 select StringTree.Lazy (() =>
 				 {
 					 var linkRef = st.GetLinkReference (label);
-					 return text.HasTag ("link") || linkRef == null ?
-						StringTree.From ("[", text, "]", NewShortcutLink (labelStart, endPos, label, st)) :
-						Link (startPos, endPos, text, 
-							DecodeUri (linkRef.Destination),
-							DecodeLinkTitle (linkRef.Title))
-							.Tag ("link");
+					 if (text.HasTag ("link") || linkRef == null)
+					 {
+						 var esclab = EscapeBackslashes (label);
+						 return StringTree.From ("[", text, "]",
+							linkRef == null ?
+								StringTree.From ("[", esclab, "]") :
+								Link (startPos, endPos, esclab,
+									DecodeUri (linkRef.Destination),
+									DecodeLinkTitle (linkRef.Title)));
+					 }
+					 return Link (startPos, endPos, text,
+						 DecodeUri (linkRef.Destination),
+						 DecodeLinkTitle (linkRef.Title))
+						 .Tag ("link");
 				 }))
 				.Trace ("FullReferenceLink");
 
 			Parser<StringTree, char> CollapsedOrShortcutReferenceLink (
 				long startPos, StringTree text) =>
-				(from brackets in SP.String ("[]").OptionalRef ()
+				(from label in LinkLabel.OptionalRef ().Backtrack (startPos)
+				 from brackets in SP.String ("[]").OptionalRef ()
 				 from endPos in Parser.Position<char> ()
 				 from st in Parser.GetState<ParseState, char> ()
-				 select StringTree.Lazy (() => 
-					NewShortcutLink (startPos, endPos, text.ToString (), st)))
+				 select StringTree.Lazy (() =>
+				 {
+					 if (label != null)
+					 {
+						 var esclab = EscapeBackslashes (label);
+						 var linkRef = st.GetLinkReference (label);
+						 return linkRef == null ?
+							 StringTree.From ("[", esclab, "]") :
+							 Link (startPos, endPos, esclab,
+								 DecodeUri (linkRef.Destination),
+								 DecodeLinkTitle (linkRef.Title));
+					 }
+					 return StringTree.From ("[", text, "]");
+				 }))
 				.Trace ("CollapsedOrShortcutReferenceLink");
 
 			var AnyLink =

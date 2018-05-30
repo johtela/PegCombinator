@@ -173,6 +173,10 @@
 		}
 
 		public static Parser<string, char> ToStringParser (
+			this Parser<char, char> parser) =>
+			parser.Select (chr => new string (chr, 1));
+
+		public static Parser<string, char> ToStringParser (
 			this Parser<List<char>, char> parser) => 
 			parser.Select (AsString);
 

@@ -306,13 +306,16 @@
 			return input => ParseResult<long>.Succeeded (input.Position, input.Position);
 		}
 
-		public static Parser<long, S> Backtrack<S> (long position)
+		public static Parser<T, S> Backtrack<T, S> (this Parser<T, S> parser,
+			long position)
 		{
 			return input =>
 			{
-				var res = input.Position;
+				var pos = input.Position;
 				input.Position = position;
-				return ParseResult<long>.Succeeded (position, res);
+				var res = parser (input);
+				input.Position = pos;
+				return res;
 			};
 		}
 
