@@ -574,11 +574,10 @@
 				 {
 					 if (label != null)
 					 {
-						 var esclab = EscapeBackslashes (label);
 						 var linkRef = st.GetLinkReference (label);
 						 return linkRef == null ?
-							 StringTree.From ("[", esclab, "]") :
-							 Link (startPos, endPos, esclab,
+							 StringTree.From ("[", text, "]") :
+							 Link (startPos, endPos, text,
 								 DecodeUri (linkRef.Destination),
 								 DecodeLinkTitle (linkRef.Title));
 					 }
@@ -601,8 +600,8 @@
 				 from col in SP.Char (':')
 				 from ws1 in OptionalWsWithUpTo1NL
 				 from dest in LinkDestination
-				 from ws2 in OptionalWsWithUpTo1NL
-				 from title in LinkTitle.OptionalRef ()
+				 from title in OptionalWsWithUpTo1NL
+					.Then (LinkTitle).OptionalRef ()
 				 from ws3 in OptionalSpace
 				 from end in SP.NewLine.Or (AtEnd (""))
 				 from _ in Parser.ModifyState<ParseState, char> (st => 
