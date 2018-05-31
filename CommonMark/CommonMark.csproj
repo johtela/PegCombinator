@@ -48,6 +48,8 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BackslashEscapes.cs" />
+    <Compile Include="EntityAndNumericCharReferences.cs" />
     <Compile Include="Tabs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TestBase.cs" />

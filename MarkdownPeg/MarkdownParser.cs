@@ -293,16 +293,24 @@
 			/*
 			#### Escaped Characters
 			*/
+			var PossibleEscapes = SP.OneOf ('!', '"', '#', '$', '%', '&', '\'', '(', ')',
+					 '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?',
+					 '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~');
+
 			var EscapedChar =
 				(from bs in SP.Char ('\\')
-				 from sc in SP.OneOf ('!', '"', '#', '$', '%', '&', '\'', '(', ')',
-					 '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?',
-					 '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~')
+				 from sc in PossibleEscapes
 				 select sc)
 				.Trace ("EscapedChar");
 
 			var EscapedCharWithBackslash =
 				EscapedChar.Select (ch => "\\" + ch);
+
+			var BackslashEscape =
+				from pos in Parser.Position<char> ()
+				from c in EscapedChar
+				select char.IsPunctuation (c) || c.In ('<','>') ?	
+					Punctuation (pos, c) : c;
 			/*
 			#### Unformatted Text
 			*/
@@ -616,8 +624,7 @@
 				.Or (AnyLink)
 				.Or (Emphasized)
 				.Or (SpaceBetweenWords)
-				.Or (from c in EscapedChar
-					 select (StringTree)c)
+				.Or (BackslashEscape)
 				.Or (Punct)
 				.Or (UnformattedText)
 				.Trace ("Inline");

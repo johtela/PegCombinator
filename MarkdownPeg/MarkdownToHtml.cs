@@ -41,6 +41,9 @@
 		protected override StringTree SoftLineBreak (long start, long end, StringTree text) =>
 			_newline;
 
+		protected override StringTree HardLineBreak (long start, long end, StringTree text) => 
+			"<br />" + _newline;
+
 		protected override StringTree Punctuation (long pos, char punctuation)
 		{
 			switch (punctuation)
