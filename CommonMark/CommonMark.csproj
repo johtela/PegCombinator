@@ -49,6 +49,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BackslashEscapes.cs" />
+    <Compile Include="CodeSpans.cs" />
     <Compile Include="EntityAndNumericCharReferences.cs" />
     <Compile Include="Tabs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

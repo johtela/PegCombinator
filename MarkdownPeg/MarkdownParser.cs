@@ -36,7 +36,7 @@
 			"#".Times (headingLevel) + " " + headingText + Environment.NewLine;
 
 		protected virtual StringTree Verbatim (long start, long end,
-			StringTree verbatimText) => verbatimText;
+			string verbatimText) => verbatimText;
 
 		protected virtual StringTree Paragraph (long start, long end,
 			StringTree text) => text;
@@ -66,6 +66,8 @@
 			string dest, string title) =>
 			"[" + text + "](" + dest + " \"" + title + "\"";
 
+		protected virtual StringTree CodeSpan (long start, long end, string code) =>
+			"`" + code + "`";
 		/*
 		## Helpers
 		*/
@@ -91,7 +93,7 @@
 		}
 
 		private bool IsPunctuation (char c) =>
-			char.IsPunctuation (c) || c.In ('<', '>');
+			char.IsPunctuation (c) || c.In ('<', '>', '`');
 		/*
 		## Parsing State
 		*/
@@ -137,7 +139,7 @@
 			/*
 			### Special and Normal Characters
 			*/
-			var PunctChar = SP.Punctuation.Or (SP.OneOf ('<', '>'));
+			var PunctChar = SP.Punctuation.Or (SP.OneOf ('<', '>', '`'));
 
 			var NormalChar =
 				PunctChar
@@ -197,14 +199,14 @@
 				 from text in NonblankIndentedLine.OneOrMore ()
 				 select (bls.IsEmpty () ? text :
 					 bls.Select (_ => Environment.NewLine).Concat (text))
-					 .ToStringTree ())
+					 .AsString ())
 				.Trace ("VerbatimChunk");
 
 			var VerbatimBlock =
 				(from startPos in Parser.Position<char> ()
 				 from chunks in VerbatimChunk.OneOrMore ()
 				 from endPos in Parser.Position<char> ()
-				 select Verbatim (startPos, endPos, chunks.ToStringTree ()))
+				 select Verbatim (startPos, endPos, chunks.AsString ()))
 				.Trace ("VerbatimBlock");
 			/*
 			### Thematic Breaks
@@ -554,7 +556,7 @@
 					 .Or (SP.NoneOf (close).ToStringParser ())
 					 .ZeroOrMore ())
 				 from cq in SP.Char (close)
-				 let title = chs.ToString ("", "", "")
+				 let title = chs.AsString ()
 				 select Tuple.Create (title, StringTree.From (open, title, close)))
 				.Trace (string.Format ("LinkTitle {0}...{1}", open, close));
 
@@ -586,7 +588,7 @@
 			*/
 			var LinkLabel =
 				(from op in SP.Char ('[')
-				 from ws in SP.Whitespace ().Optional ("")
+				 from ws in SP.OptionalWhitespace ("")
 				 from chs in (
 					Brackets.Not ()
 					.Then (
@@ -596,7 +598,7 @@
 					.OneOrMore ()
 				 where !chs.All (string.IsNullOrWhiteSpace)
 				 from cp in SP.Char (']')
-				 select chs.ToString ("", "", "").TrimEnd ().ToLower ())
+				 select chs.AsString ().TrimEnd ().ToLower ())
 				 .Trace ("LinkLabel");
 
 			Parser<StringTree, char> FullReferenceLink (long startPos,
@@ -670,12 +672,44 @@
 				 select StringTree.Empty)
 				.Trace ("LinkReferenceDefinition");
 			/*
+			#### Code Spans
+			*/
+			var BacktickString =
+				(from bts in SP.Char ('`').OneOrMore ()
+				 select bts.AsString ())
+				.Trace ("BacktickString");
+
+			Parser<string, char> CodeContent (Parser<string, char> close) =>
+				(from ws in SP.OptionalWhitespace ("")
+				 from code in close.Not ()
+					 .Then (
+						 SP.AsciiWhitespace (" ")
+						 .Or (BacktickString)
+						 .Or (SP.AnyChar.ToStringParser ()))
+					 .ZeroOrMore ()
+				 from cl in close
+				 select code.AsString ())
+				.Trace ("CodeContent");
+
+			var Code =
+				(from startPos in Parser.Position<char> ()
+				 from bts in BacktickString
+				 let len = bts.Length
+				 let close = BacktickString.Where (bs => bs.Length == len)
+				 from code in CodeContent (close).OptionalRef ()
+				 from endPos in Parser.Position<char> ()
+				 select code != null ?
+					CodeSpan (startPos, endPos, code.TrimEnd ()) :
+					CharsToStringTree (startPos, bts))
+				.Trace ("Code");
+			/*
 			#### Main Inline Selector
 			*/
 			Inline.Target =
 				LineBreak
 				.Or (AnyLink)
 				.Or (Emphasized)
+				.Or (Code)
 				.Or (SpaceBetweenWords)
 				.Or (BackslashEscape)
 				.Or (Entity)

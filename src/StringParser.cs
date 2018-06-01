@@ -140,6 +140,14 @@
 			from _ in WhitespaceChar.OneOrMore ()
 			select result;
 
+		public static Parser<string, char> OptionalWhitespace (string result = "") =>
+			from _ in WhitespaceChar.ZeroOrMore ()
+			select result;
+
+		public static Parser<string, char> AsciiWhitespace (string result = "") =>
+			from _ in AsciiWhitespaceChar.OneOrMore ()
+			select result;
+
 		public static readonly Parser<string, char> SpacesOrTabs =
 			from s in OneOf (' ', '\t').OneOrMore ()
 			select s.AsString ();
@@ -169,11 +177,19 @@
 			from _ in Whitespace ()
 			select v;
 
-		public static string AsString (this List<char> list)
+		public static string AsString (this IEnumerable<char> list)
 		{
 			var res = new StringBuilder ();
-			for (int i = 0; i < list.Count; i++)
-				res.Append (list[i]);
+			foreach (var ch in list)
+				res.Append (ch);
+			return res.ToString ();
+		}
+
+		public static string AsString (this IEnumerable<string> list)
+		{
+			var res = new StringBuilder ();
+			foreach (var str in list)
+				res.Append (str);
 			return res.ToString ();
 		}
 

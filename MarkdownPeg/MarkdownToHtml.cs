@@ -54,8 +54,8 @@
 			return StringTree.From (OpenTag (tag), headingText, CloseTag (tag), _newline);
 		}
 
-		protected override StringTree Verbatim (long start, long end, StringTree verbatimText) =>
-			StringTree.From ("<pre><code>", HtmlEncode (verbatimText.ToString ()), 
+		protected override StringTree Verbatim (long start, long end, string verbatimText) =>
+			StringTree.From ("<pre><code>", HtmlEncode (verbatimText), 
 				"</code></pre>", _newline);
 
 		protected override StringTree Paragraph (long start, long end, StringTree text) =>
@@ -101,5 +101,8 @@
 				title != null ? "\" title=\"" + title : StringTree.Empty, 
 				"\">", text, "</a>");
 		}
+
+		protected override StringTree CodeSpan (long start, long end, string code) => 
+			StringTree.From ("<code>", HtmlEncode (code), "</code>");
 	}
 }
