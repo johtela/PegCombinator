@@ -89,6 +89,9 @@
 					res.Append (str[i++]);
 			return res.ToString ();
 		}
+
+		private bool IsPunctuation (char c) =>
+			char.IsPunctuation (c) || c.In ('<', '>');
 		/*
 		## Parsing State
 		*/
@@ -157,7 +160,7 @@
 				 from nl in SP.NewLine.Optional ("")
 				 from ws2 in OptionalSpace
 				 select ws1 + nl + ws2)
-				.Trace ("WsWithUpTo1NL");
+				.Trace ("OptionalWsWithUpTo1NL");
 			/*
 			### Text Lines
 			*/
@@ -194,14 +197,14 @@
 				 from text in NonblankIndentedLine.OneOrMore ()
 				 select (bls.IsEmpty () ? text :
 					 bls.Select (_ => Environment.NewLine).Concat (text))
-					 .FromEnumerable ())
+					 .ToStringTree ())
 				.Trace ("VerbatimChunk");
 
 			var VerbatimBlock =
 				(from startPos in Parser.Position<char> ()
 				 from chunks in VerbatimChunk.OneOrMore ()
 				 from endPos in Parser.Position<char> ()
-				 select Verbatim (startPos, endPos, chunks.FromEnumerable ()))
+				 select Verbatim (startPos, endPos, chunks.ToStringTree ()))
 				.Trace ("VerbatimBlock");
 			/*
 			### Thematic Breaks
@@ -304,13 +307,60 @@
 				.Trace ("EscapedChar");
 
 			var EscapedCharWithBackslash =
-				EscapedChar.Select (ch => "\\" + ch);
+				EscapedChar.Select (ch => "\\" + ch)
+				.Trace ("EscapedCharWithBackslash");
 
 			var BackslashEscape =
-				from pos in Parser.Position<char> ()
-				from c in EscapedChar
-				select char.IsPunctuation (c) || c.In ('<','>') ?	
-					Punctuation (pos, c) : c;
+				(from pos in Parser.Position<char> ()
+				 from c in EscapedChar
+				 select IsPunctuation (c) ?
+					 Punctuation (pos, c) : c)
+				.Trace ("BackslashEscape");
+			/*
+			#### Entity Character References
+			*/
+			StringTree CharsToStringTree (long pos, string chars) =>
+				(from c in chars
+				 select IsPunctuation (c) ? Punctuation (pos, c) : c)
+				.ToStringTree ();
+
+			var EntityAsString =
+				(from amp in SP.Char ('&')
+				 from ent in SP.AlphaNumeric.OneOrMore ()
+				 from sc in SP.Char (';')
+				 let res = EntityHelper.DecodeEntity (ent.AsString ())
+				 where res != null
+				 select res)
+				.Trace ("EntityAsString");
+
+			var Entity =
+				(from pos in Parser.Position<char> ()
+				 from res in EntityAsString
+				 select CharsToStringTree (pos, res))
+				.Trace ("Entity");
+			/*
+			#### Decimal and Hexadecimal Numeric Characters
+			*/
+			var HexNumber =
+				from x in SP.OneOf ('X', 'x')
+				from num in SP.HexadecimalInteger 
+				select num;
+
+			var NumericCharAsString =
+				(from amp in SP.Char ('&')
+				 from hash in SP.Char ('#')
+				 from num in SP.PositiveInteger.Or (HexNumber)
+				 from sc in SP.Char (';')
+				 select num == 0 || num > 0x10ffff ?
+					"\uFFFD" :
+					char.ConvertFromUtf32 (num))
+				.Trace ("NumericCharAsString");
+
+			var NumericChar =
+				(from pos in Parser.Position<char> ()
+				 from res in NumericCharAsString
+				 select CharsToStringTree (pos, res))
+				.Trace ("NumericChar");
 			/*
 			#### Unformatted Text
 			*/
@@ -399,7 +449,7 @@
 				(from il in ClosingDelim (delim, lfd, terminator).Not ()
 					.Then (Inline.ForwardRef ())
 					.OneOrMore ()
-				 select il.FromEnumerable ())
+				 select il.ToStringTree ())
 				.Trace ("EmphInlines");
 
 			Parser<StringTree, char> AsteriskEmph (int cnt,
@@ -455,7 +505,7 @@
 					.Then (Inline.ForwardRef ())
 					.ZeroOrMore ()
 				 from cp in SP.Char (']')
-				 select ilb.FromEnumerable ())
+				 select ilb.ToStringTree ())
 				.Trace ("LinkText");
 
 			var LinkDestAngle =
@@ -497,11 +547,14 @@
 
 			Parser<Tuple<string, StringTree>, char> LTitle (char open, char close) =>
 				(from oq in SP.Char (open)
-				from chs in SP.BlankLine ().Not ().Then (
-					EscapedChar.Or (SP.NoneOf (close))
-					.ZeroOrMore ())
-				from cq in SP.Char (close)
-				let title = chs.AsString ()
+				 from chs in SP.BlankLine ().Not ().Then (
+					 EscapedChar.ToStringParser ()
+					 .Or (EntityAsString)
+					 .Or (NumericCharAsString)
+					 .Or (SP.NoneOf (close).ToStringParser ())
+					 .ZeroOrMore ())
+				 from cq in SP.Char (close)
+				 let title = chs.ToString ("", "", "")
 				 select Tuple.Create (title, StringTree.From (open, title, close)))
 				.Trace (string.Format ("LinkTitle {0}...{1}", open, close));
 
@@ -625,13 +678,15 @@
 				.Or (Emphasized)
 				.Or (SpaceBetweenWords)
 				.Or (BackslashEscape)
+				.Or (Entity)
+				.Or (NumericChar)
 				.Or (Punct)
 				.Or (UnformattedText)
 				.Trace ("Inline");
 
 			var Inlines =
 				(from il in Inline.Target.OneOrMore ()
-				 select il.FromEnumerable ())
+				 select il.ToStringTree ())
 				.Trace ("Inlines"); ;
 			/*
 			### Headings
@@ -662,7 +717,7 @@
 				 select Heading (startPos, endPos, level,
 					 inlines.IsEmpty () ? StringTree.Empty : 
 					 (inlines[0].IsLeaf () && inlines[0].LeafValue ().All (char.IsWhiteSpace) ? 
-						inlines.Skip (1) : inlines).FromEnumerable ()))
+						inlines.Skip (1) : inlines).ToStringTree ()))
 				.Trace ("AtxHeading");
 			/*
 			#### Setext Headings
@@ -695,7 +750,7 @@
 				 from ul in SetextUnderline
 				 from endPos in Parser.Position<char> ()
 				 select Heading (startPos, endPos, ul.Contains ("=") ? 1 : 2,
-					 inlines.FromEnumerable ()))
+					 inlines.ToStringTree ()))
 				.Trace ("SetextHeading");
 			/*
 			### Paragraphs
@@ -725,7 +780,7 @@
 			return
 				(from _ in Parser.SetState<ParseState, char> (() => new ParseState ())
 				 from blocks in AnyBlock.ZeroOrMore ()
-				 select blocks.IsEmpty () ? StringTree.Empty : blocks.FromEnumerable ())
+				 select blocks.IsEmpty () ? StringTree.Empty : blocks.ToStringTree ())
 				.Trace ("Doc");
 		}
 	}

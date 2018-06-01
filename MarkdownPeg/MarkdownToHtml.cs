@@ -2,8 +2,8 @@
 {
 	using System;
 	using System.Linq;
-	using System.Net;
 	using PegCombinator;
+	using System.Text;
 
 	public class MarkdownToHtml : MarkdownParser
 	{
@@ -22,6 +22,28 @@
 		private string CloseTag (string tagName) =>
 			string.Format ("</{0}>", tagName);
 
+		private string HtmlEncode (char ch)
+		{
+			switch (ch)
+			{
+				case '&': return "&amp;";
+				case '<': return "&lt;";
+				case '>': return "&gt;";
+				case '"': return "&quot;";
+				default: return new string (ch, 1);
+			}
+		}
+
+		private string HtmlEncode (string str)
+		{
+			if (str == null)
+				return null;
+			var res = new StringBuilder ();
+			for (int i = 0; i < str.Length; i++)
+				res.Append (HtmlEncode (str[i]));
+			return res.ToString ();
+		}
+
 		protected override StringTree ThematicBreak (long start, long end, StringTree text) =>
 			"<hr />" + _newline;
 
@@ -33,7 +55,8 @@
 		}
 
 		protected override StringTree Verbatim (long start, long end, StringTree verbatimText) =>
-			StringTree.From ("<pre><code>", verbatimText, "</code></pre>", _newline);
+			StringTree.From ("<pre><code>", HtmlEncode (verbatimText.ToString ()), 
+				"</code></pre>", _newline);
 
 		protected override StringTree Paragraph (long start, long end, StringTree text) =>
 			StringTree.From ("<p>", text, "</p>", _newline);
@@ -44,17 +67,8 @@
 		protected override StringTree HardLineBreak (long start, long end, StringTree text) => 
 			"<br />" + _newline;
 
-		protected override StringTree Punctuation (long pos, char punctuation)
-		{
-			switch (punctuation)
-			{
-				case '&': return "&amp;";
-				case '<': return "&lt;";
-				case '>': return "&gt;";
-				case '"': return "&quot;";
-				default: return base.Punctuation (pos, punctuation);
-			}
-		}
+		protected override StringTree Punctuation (long pos, char punctuation) => 
+			HtmlEncode (punctuation);
 
 		protected override StringTree Emphasis (long start, long end, StringTree text) =>
 			StringTree.From ("<em>", text, "</em>");
@@ -82,7 +96,7 @@
 			string dest, string title)
 		{
 			dest = Uri.EscapeUriString (dest);
-			title = WebUtility.HtmlEncode (title);
+			title = HtmlEncode (title);
 			return StringTree.From ("<a href=\"", dest ?? StringTree.Empty, 
 				title != null ? "\" title=\"" + title : StringTree.Empty, 
 				"\">", text, "</a>");

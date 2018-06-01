@@ -125,7 +125,7 @@
 			From (left, right);
 
 		public static StringTree From (params StringTree[] values) =>
-			StringTreeHelpers.FromEnumerable (values);
+			StringTreeHelpers.ToStringTree (values);
 
 		public static StringTree Lazy (Func<StringTree> getValue) => 
 			new LazyNode (getValue);
@@ -133,10 +133,10 @@
 
 	public static class StringTreeHelpers
 	{
-		public static StringTree FromEnumerable (this IEnumerable<StringTree> values) =>
+		public static StringTree ToStringTree (this IEnumerable<StringTree> values) =>
 			new StringTree.ListNode (values);
 
-		public static StringTree FromEnumerable (this IEnumerable<string> values) =>
+		public static StringTree ToStringTree (this IEnumerable<string> values) =>
 			new StringTree.ListNode (values.Select (v => new StringTree.Leaf (v)));
 
 		public static StringTree Tag (this StringTree value, string tag) =>

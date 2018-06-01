@@ -36,9 +36,9 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Net" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="EntityHelper.cs" />
     <Compile Include="MarkdownParser.cs" />
     <Compile Include="MarkdownToHtml.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

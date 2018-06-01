@@ -2,6 +2,7 @@
 {
 	using System;
 	using System.Collections.Generic;
+	using System.Globalization;
 	using System.Text;
 	using ExtensionCord;
 
@@ -113,10 +114,8 @@
 		/// Parse a positive integer without a leading '+' character.
 		/// </summary>
 		public static readonly Parser<int, char> PositiveInteger =
-			(from x in Number
-			 select x - '0').Chain1 (
-				Parser.ToParser<Func<int, int, int>, char> (
-					(m, n) => 10 * m + n));
+			from xs in Number.OneOrMore ()
+			select int.Parse (xs.AsString ());
 
 		/// <summary>
 		/// Parse a possibly negative integer.
@@ -125,6 +124,12 @@
 			from sign in Char ('-').OptionalVal ()
 			from number in PositiveInteger
 			select sign.HasValue ? -number : number;
+
+		public static readonly Parser<int, char> HexadecimalInteger =
+			from xs in Number
+				.Or (OneOf ('A', 'B', 'C', 'D', 'E', 'F', 'a', 'b', 'c', 'd', 'e', 'f'))
+				.OneOrMore ()
+			select int.Parse (xs.AsString (), NumberStyles.HexNumber);
 
 		/// <summary>
 		/// Creates a parser that skips whitespace, i.e. just consumes white space 
