@@ -481,7 +481,9 @@
 					 from endPos in Parser.Position<char> ()
 					 from cd in emphDelim
 					 from rfd in AsteriskEmphEnd
-					 select transform (startPos, endPos, ils))
+					 from st in Parser.GetState<ParseState, char> ()
+					 select st.InsideImage () ? ils :
+						transform (startPos, endPos, ils))
 					.Trace ("AsteriskEmph");
 			}
 
@@ -500,7 +502,9 @@
 					 from endPos in Parser.Position<char> ()
 					 from cd in emphDelim
 					 from rfd in UnderscoreEmphEnd
-					 select transform (startPos, endPos, ils))
+					 from st in Parser.GetState<ParseState, char> ()
+					 select st.InsideImage () ? ils :
+						 transform (startPos, endPos, ils))
 					.Trace ("UnderscoreEmph");
 			}
 
@@ -579,8 +583,7 @@
 				.Or (LTitle ('(', ')'))
 				.Trace ("LinkTitle");
 
-			Parser<StringTree, char> InlineLinkOrImage (long startPos, StringTree text, 
-				Func<long, long, StringTree, string, string, StringTree> transform) =>
+			Parser<StringTree, char> InlineLink (long startPos, StringTree text) =>
 				(from op in SP.Char ('(')
 				 from ws1 in SP.WhitespaceChar.ZeroOrMore ()
 				 from dest in LinkDestination.OptionalRef ()
@@ -589,11 +592,14 @@
 				 from ws3 in SP.WhitespaceChar.ZeroOrMore ()
 				 from cp in SP.Char (')')
 				 from endPos in Parser.Position<char> ()
-				 select text.HasTag ("link") ?
-					StringTree.From ('[', text, ']', '(', 
-						ws1.AsString (), dest, ws2.AsString (),
-						title == null ? "" : title.Item2, ws3.AsString (), ')') :
-					transform (startPos, endPos, text,
+				 from st in Parser.GetState<ParseState, char> ()
+				 select st.InsideImage () ?
+						text :
+					text.HasTag ("link") ?
+						StringTree.From ('[', text, ']', '(', 
+							ws1.AsString (), dest, ws2.AsString (),
+							title == null ? "" : title.Item2, ws3.AsString (), ')') :
+					Link (startPos, endPos, text,
 						 DecodeUri (dest), DecodeLinkTitle (title?.Item1))
 						.Tag ("link"))
 				.Trace ("InlineLink");
@@ -665,7 +671,7 @@
 			var AnyLink =
 				(from startPos in Parser.Position<char> ()
 				 from text in LinkText
-				 from res in InlineLinkOrImage (startPos, text, Link)
+				 from res in InlineLink (startPos, text)
 					 .Or (FullReferenceLink (startPos, text))
 					 .Or (CollapsedOrShortcutReferenceLink (startPos, text))
 				 select res)
@@ -688,15 +694,69 @@
 			/*
 			#### Images
 			*/
-			var InlineImage =
+			Parser<StringTree, char> InlineImage (long startPos, StringTree alt) =>
+				(from op in SP.Char ('(')
+				 from ws1 in SP.WhitespaceChar.ZeroOrMore ()
+				 from dest in LinkDestination.OptionalRef ()
+				 from ws2 in SP.WhitespaceChar.ZeroOrMore ()
+				 from title in LinkTitle.OptionalRef ()
+				 from ws3 in SP.WhitespaceChar.ZeroOrMore ()
+				 from cp in SP.Char (')')
+				 from endPos in Parser.Position<char> ()
+				 from st in Parser.GetState<ParseState, char> ()
+				 select st.InsideImage () ? alt :
+					Image (startPos, endPos, alt,
+						 DecodeUri (dest), DecodeLinkTitle (title?.Item1)))
+				.Trace ("InlineImage");
+
+			Parser<StringTree, char> FullReferenceImage (long startPos,
+				StringTree alt) =>
+				(from labelStart in Parser.Position<char> ()
+				 from label in LinkLabel
+				 from endPos in Parser.Position<char> ()
+				 from st in Parser.GetState<ParseState, char> ()
+				 select StringTree.Lazy (() =>
+				 {
+					 var linkRef = st.GetLinkReference (label);
+					 return linkRef == null ?
+						StringTree.From ("![", alt, "][", EscapeBackslashes (label), "]") :
+						Image (startPos, endPos, alt, DecodeUri (linkRef.Destination),
+							DecodeLinkTitle (linkRef.Title));
+				 }))
+				.Trace ("FullReferenceImage");
+
+			Parser<StringTree, char> CollapsedOrShortcutReferenceImage (
+				long startPos, StringTree alt) =>
+				(from label in LinkLabel.OptionalRef ().Backtrack (startPos + 1)
+				 from brackets in SP.String ("[]").OptionalRef ()
+				 from endPos in Parser.Position<char> ()
+				 from st in Parser.GetState<ParseState, char> ()
+				 select StringTree.Lazy (() =>
+				 {
+					 if (label != null)
+					 {
+						 var linkRef = st.GetLinkReference (label);
+						 return linkRef == null ?
+							 StringTree.From ("![", alt, "]") :
+							 Image (startPos, endPos, alt,
+								 DecodeUri (linkRef.Destination),
+								 DecodeLinkTitle (linkRef.Title));
+					 }
+					 return StringTree.From ("![", alt, "]");
+				 }))
+				.Trace ("CollapsedOrShortcutReferenceImage");
+
+			var AnyImage =
 				(from startPos in Parser.Position<char> ()
 				 from em in SP.Char ('!')
 				 from _ in Parser.ModifyState<ParseState, char> (st => st.StartImage ())
-				 from text in LinkText
-				 from link in InlineLinkOrImage (startPos, text, Image)
-				 select link)
-				.CleanupState<StringTree, ParseState, char> (st => st.EndImage ())
-				.Trace ("InlineImage");
+				 from alt in LinkText
+					.CleanupState<StringTree, ParseState, char> (st => st.EndImage ())
+				 from img in InlineImage (startPos, alt)
+					 .Or (FullReferenceImage (startPos, alt))
+					 .Or (CollapsedOrShortcutReferenceImage (startPos, alt))
+				 select img)
+				.Trace ("AnyImage");
 			/*
 			#### Code Spans
 			*/
@@ -734,7 +794,7 @@
 			Inline.Target =
 				LineBreak
 				.Or (AnyLink)
-				.Or (InlineImage)
+				.Or (AnyImage)
 				.Or (Emphasized)
 				.Or (Code)
 				.Or (SpaceBetweenWords)
