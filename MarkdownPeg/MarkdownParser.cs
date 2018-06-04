@@ -66,6 +66,10 @@
 			string dest, string title) =>
 			"[" + text + "](" + dest + " \"" + title + "\"";
 
+		protected virtual StringTree Image (long start, long end, StringTree alt,
+			string dest, string title) =>
+			"![" + alt + "](" + dest + " \"" + title + "\"";
+
 		protected virtual StringTree CodeSpan (long start, long end, string code) =>
 			"`" + code + "`";
 		/*
@@ -115,6 +119,7 @@
 		{
 			private Dictionary<string, LinkReference> _linkReferences =
 				new Dictionary<string, LinkReference> ();
+			private int _nestedImages;
 
 			public void AddLinkReference (string label, string dest,
 				string title)
@@ -127,6 +132,15 @@
 			public LinkReference GetLinkReference (string label) =>
 				_linkReferences.TryGetValue (label, out var res) ?
 					res : null;
+
+			public void StartImage () =>
+				_nestedImages++;
+
+			public void EndImage () =>
+				_nestedImages--;
+
+			public bool InsideImage () =>
+				_nestedImages > 0;
 		}
 
 		/*
@@ -565,8 +579,8 @@
 				.Or (LTitle ('(', ')'))
 				.Trace ("LinkTitle");
 
-			Parser<StringTree, char> InlineLink (long startPos,
-				StringTree text) =>
+			Parser<StringTree, char> InlineLinkOrImage (long startPos, StringTree text, 
+				Func<long, long, StringTree, string, string, StringTree> transform) =>
 				(from op in SP.Char ('(')
 				 from ws1 in SP.WhitespaceChar.ZeroOrMore ()
 				 from dest in LinkDestination.OptionalRef ()
@@ -579,7 +593,7 @@
 					StringTree.From ('[', text, ']', '(', 
 						ws1.AsString (), dest, ws2.AsString (),
 						title == null ? "" : title.Item2, ws3.AsString (), ')') :
-					Link (startPos, endPos, text,
+					transform (startPos, endPos, text,
 						 DecodeUri (dest), DecodeLinkTitle (title?.Item1))
 						.Tag ("link"))
 				.Trace ("InlineLink");
@@ -651,7 +665,7 @@
 			var AnyLink =
 				(from startPos in Parser.Position<char> ()
 				 from text in LinkText
-				 from res in InlineLink (startPos, text)
+				 from res in InlineLinkOrImage (startPos, text, Link)
 					 .Or (FullReferenceLink (startPos, text))
 					 .Or (CollapsedOrShortcutReferenceLink (startPos, text))
 				 select res)
@@ -672,6 +686,18 @@
 				 select StringTree.Empty)
 				.Trace ("LinkReferenceDefinition");
 			/*
+			#### Images
+			*/
+			var InlineImage =
+				(from startPos in Parser.Position<char> ()
+				 from em in SP.Char ('!')
+				 from _ in Parser.ModifyState<ParseState, char> (st => st.StartImage ())
+				 from text in LinkText
+				 from link in InlineLinkOrImage (startPos, text, Image)
+				 select link)
+				.CleanupState<StringTree, ParseState, char> (st => st.EndImage ())
+				.Trace ("InlineImage");
+			/*
 			#### Code Spans
 			*/
 			var BacktickString =
@@ -688,7 +714,7 @@
 						 .Or (SP.AnyChar.ToStringParser ()))
 					 .ZeroOrMore ()
 				 from cl in close
-				 select code.AsString ())
+				 select code.AsString ().TrimEnd ())
 				.Trace ("CodeContent");
 
 			var Code =
@@ -699,7 +725,7 @@
 				 from code in CodeContent (close).OptionalRef ()
 				 from endPos in Parser.Position<char> ()
 				 select code != null ?
-					CodeSpan (startPos, endPos, code.TrimEnd ()) :
+					CodeSpan (startPos, endPos, code) :
 					CharsToStringTree (startPos, bts))
 				.Trace ("Code");
 			/*
@@ -708,6 +734,7 @@
 			Inline.Target =
 				LineBreak
 				.Or (AnyLink)
+				.Or (InlineImage)
 				.Or (Emphasized)
 				.Or (Code)
 				.Or (SpaceBetweenWords)

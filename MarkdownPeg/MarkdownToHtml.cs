@@ -102,6 +102,16 @@
 				"\">", text, "</a>");
 		}
 
+		protected override StringTree Image (long start, long end, StringTree alt, string dest, string title)
+		{
+			dest = Uri.EscapeUriString (dest);
+			title = HtmlEncode (title);
+			return StringTree.From ("<img src=\"", dest ?? StringTree.Empty,
+				"\" alt=\"", alt,
+				title != null ? "\" title=\"" + title : StringTree.Empty,
+				"\" />");
+		}
+
 		protected override StringTree CodeSpan (long start, long end, string code) => 
 			StringTree.From ("<code>", HtmlEncode (code), "</code>");
 	}
