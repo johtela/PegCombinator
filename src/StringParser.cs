@@ -44,6 +44,10 @@
 		public static readonly Parser<char, char> Letter =
 			Parser.Satisfy<char> (char.IsLetter).Expect ("letter");
 
+		public static readonly Parser<char, char> AsciiLetter =
+			Parser.Satisfy<char> (c => c < 0x80 && char.IsLetter (c))
+				.Expect ("ASCII letter");
+
 		public static readonly Parser<char, char> Symbol =
 			Parser.Satisfy<char> (char.IsSymbol).Expect ("symbol");
 
@@ -51,13 +55,18 @@
 			Parser.Satisfy<char> (char.IsPunctuation).Expect ("punctuation");
 
 		public static readonly Parser<char, char> NotPunctuation =
-			Parser.Satisfy<char> (c => !char.IsPunctuation (c)).Expect ("not punctuation");
+			Parser.Satisfy<char> (c => !char.IsPunctuation (c))
+				.Expect ("not punctuation");
 
 		/// <summary>
 		/// Parse on alphanumeric character.
 		/// </summary>
 		public static readonly Parser<char, char> AlphaNumeric =
-			Parser.Satisfy<char> (char.IsLetterOrDigit).Expect ("alphanumeric character");
+			Parser.Satisfy<char> (char.IsLetterOrDigit).Expect ("alphanumeric character"); 
+
+		public static readonly Parser<char, char> AsciiAlphaNumeric =
+			Parser.Satisfy<char> (c => c < 0x80 && char.IsLetterOrDigit (c))
+			.Expect ("alphanumeric character");
 
 		public static readonly Parser<char, char> WhitespaceChar =
 			Parser.Satisfy<char> (char.IsWhiteSpace).Expect ("whitespace character");

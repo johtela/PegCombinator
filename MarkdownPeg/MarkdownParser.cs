@@ -3,7 +3,6 @@
 	using System;
 	using System.Collections.Generic;
 	using System.Linq;
-	using System.Net;
 	using System.Text;
 	using ExtensionCord;
 	using PegCombinator;
@@ -75,12 +74,6 @@
 		/*
 		## Helpers
 		*/
-		private string DecodeUri (string uri) => 
-			Uri.UnescapeDataString (WebUtility.HtmlDecode (uri));
-
-		private string DecodeLinkTitle (string title) =>
-			title == null ? null : WebUtility.HtmlDecode (title);
-
 		private string EscapeBackslashes (string str)
 		{
 			var res = new StringBuilder ();
@@ -139,7 +132,7 @@
 			public void EndImage () =>
 				_nestedImages--;
 
-			public bool InsideImage () =>
+			public bool InsideImage =>
 				_nestedImages > 0;
 		}
 
@@ -344,7 +337,7 @@
 				(from amp in SP.Char ('&')
 				 from ent in SP.AlphaNumeric.OneOrMore ()
 				 from sc in SP.Char (';')
-				 let res = EntityHelper.DecodeEntity (ent.AsString ())
+				 let res = HtmlHelper.DecodeEntity (ent.AsString ())
 				 where res != null
 				 select res)
 				.Trace ("EntityAsString");
@@ -482,7 +475,7 @@
 					 from cd in emphDelim
 					 from rfd in AsteriskEmphEnd
 					 from st in Parser.GetState<ParseState, char> ()
-					 select st.InsideImage () ? ils :
+					 select st.InsideImage ? ils :
 						transform (startPos, endPos, ils))
 					.Trace ("AsteriskEmph");
 			}
@@ -503,7 +496,7 @@
 					 from cd in emphDelim
 					 from rfd in UnderscoreEmphEnd
 					 from st in Parser.GetState<ParseState, char> ()
-					 select st.InsideImage () ? ils :
+					 select st.InsideImage ? ils :
 						 transform (startPos, endPos, ils))
 					.Trace ("UnderscoreEmph");
 			}
@@ -593,14 +586,14 @@
 				 from cp in SP.Char (')')
 				 from endPos in Parser.Position<char> ()
 				 from st in Parser.GetState<ParseState, char> ()
-				 select st.InsideImage () ?
+				 select st.InsideImage ?
 						text :
 					text.HasTag ("link") ?
 						StringTree.From ('[', text, ']', '(', 
 							ws1.AsString (), dest, ws2.AsString (),
 							title == null ? "" : title.Item2, ws3.AsString (), ')') :
 					Link (startPos, endPos, text,
-						 DecodeUri (dest), DecodeLinkTitle (title?.Item1))
+						HtmlHelper.DecodeUri (dest), title?.Item1)
 						.Tag ("link"))
 				.Trace ("InlineLink");
 			/*
@@ -637,12 +630,12 @@
 							linkRef == null ?
 								StringTree.From ("[", esclab, "]") :
 								Link (startPos, endPos, esclab,
-									DecodeUri (linkRef.Destination),
-									DecodeLinkTitle (linkRef.Title)));
+									HtmlHelper.DecodeUri (linkRef.Destination),
+									linkRef.Title));
 					 }
 					 return Link (startPos, endPos, text,
-						 DecodeUri (linkRef.Destination),
-						 DecodeLinkTitle (linkRef.Title))
+						 HtmlHelper.DecodeUri (linkRef.Destination),
+						 linkRef.Title)
 						 .Tag ("link");
 				 }))
 				.Trace ("FullReferenceLink");
@@ -661,8 +654,8 @@
 						 return linkRef == null ?
 							 StringTree.From ("[", text, "]") :
 							 Link (startPos, endPos, text,
-								 DecodeUri (linkRef.Destination),
-								 DecodeLinkTitle (linkRef.Title));
+								 HtmlHelper.DecodeUri (linkRef.Destination),
+								 linkRef.Title);
 					 }
 					 return StringTree.From ("[", text, "]");
 				 }))
@@ -704,9 +697,10 @@
 				 from cp in SP.Char (')')
 				 from endPos in Parser.Position<char> ()
 				 from st in Parser.GetState<ParseState, char> ()
-				 select st.InsideImage () ? alt :
+				 select st.InsideImage ? alt :
 					Image (startPos, endPos, alt,
-						 DecodeUri (dest), DecodeLinkTitle (title?.Item1)))
+						 HtmlHelper.DecodeUri (dest),
+						 title?.Item1))
 				.Trace ("InlineImage");
 
 			Parser<StringTree, char> FullReferenceImage (long startPos,
@@ -720,8 +714,9 @@
 					 var linkRef = st.GetLinkReference (label);
 					 return linkRef == null ?
 						StringTree.From ("![", alt, "][", EscapeBackslashes (label), "]") :
-						Image (startPos, endPos, alt, DecodeUri (linkRef.Destination),
-							DecodeLinkTitle (linkRef.Title));
+						Image (startPos, endPos, alt, 
+							HtmlHelper.DecodeUri (linkRef.Destination),
+							linkRef.Title);
 				 }))
 				.Trace ("FullReferenceImage");
 
@@ -739,8 +734,8 @@
 						 return linkRef == null ?
 							 StringTree.From ("![", alt, "]") :
 							 Image (startPos, endPos, alt,
-								 DecodeUri (linkRef.Destination),
-								 DecodeLinkTitle (linkRef.Title));
+								 HtmlHelper.DecodeUri (linkRef.Destination),
+								 linkRef.Title);
 					 }
 					 return StringTree.From ("![", alt, "]");
 				 }))
@@ -757,6 +752,76 @@
 					 .Or (CollapsedOrShortcutReferenceImage (startPos, alt))
 				 select img)
 				.Trace ("AnyImage");
+			/*
+			#### Autolinks
+			*/
+			var Scheme =
+				(from fst in SP.AsciiLetter
+				 from rest in SP.AsciiLetter
+					 .Or (SP.Number)
+					 .Or (SP.OneOf ('+', '.', '-'))
+					 .OneOrMore ()
+				 from col in SP.Char (':')
+				 select rest.AddToFront (fst).AddToBack (col).AsString ())
+				.Trace ("Scheme");
+
+			var UriAutolink =
+				(from sch in Scheme
+				 from adr in SP.AsciiWhitespaceChar
+					 .Or (SP.AsciiControl)
+					 .Or (SP.OneOf ('<', '>'))
+					 .Not ()
+					 .Then (SP.AnyChar)
+					 .ZeroOrMore ()
+				 select Tuple.Create (false, sch + adr.AsString ()))
+				.Trace ("UriAutoLink");
+
+			var EmailAccount =
+				SP.AsciiAlphaNumeric
+				.Or (SP.OneOf ('.', '!', '#', '$', '%', '&', '\'', '*', '+',
+					'/', '=', '?', '^', '_', '`', '{', '|', '}', '~', '-'))
+				.OneOrMore ()
+				.Trace ("EmailAccount");
+
+			var EmailServerPart =
+				(from fst in SP.AsciiAlphaNumeric
+				 from rest in SP.AsciiAlphaNumeric
+					 .Or (from hyp in SP.Char ('-')
+						  from alph in SP.AsciiAlphaNumeric.And ()
+						  select hyp)
+					 .Occurrences (0, 62)
+				 select rest.AddToFront (fst))
+				.Trace ("EmailServerPart");
+
+			var EmailAddress =
+				(from acc in EmailAccount
+				 from at in SP.Char ('@')
+				 from fpart in EmailServerPart
+				 from rparts in
+					 (from dot in SP.Char ('.')
+					  from prt in EmailServerPart
+					  select prt.AddToFront (dot))
+				     .ZeroOrMore ()
+				 select Tuple.Create (true,
+					rparts.Aggregate (
+						acc.AddToBack (at).AddToBack (fpart), 
+						(r, l) => r.AddToBack (l))
+						.AsString ()))
+				.Trace ("EmailAddress");
+
+			var Autolink =
+				(from startPos in Parser.Position<char> ()
+				 from lt in SP.Char ('<')
+				 from addr in UriAutolink
+					.Or (EmailAddress)
+				 from gt in SP.Char ('>')
+				 from endPos in Parser.Position<char> ()
+				 let dest = addr.Item1 ?
+					"mailto:" + addr.Item2 : 
+					addr.Item2
+				 select Link (startPos, endPos, HtmlHelper.HtmlEncode (addr.Item2), 
+					dest, null))
+				.Trace ("Autolink");
 			/*
 			#### Code Spans
 			*/
@@ -795,6 +860,7 @@
 				LineBreak
 				.Or (AnyLink)
 				.Or (AnyImage)
+				.Or (Autolink)
 				.Or (Emphasized)
 				.Or (Code)
 				.Or (SpaceBetweenWords)

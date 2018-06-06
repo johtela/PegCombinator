@@ -119,9 +119,21 @@
 			return list;
 		}
 
+		public static List<T> AddToFront<T> (this List<T> list, IEnumerable<T> items)
+		{
+			list.InsertRange (0, items);
+			return list;
+		}
+
 		public static List<T> AddToBack<T> (this List<T> list, T item)
 		{
 			list.Add (item);
+			return list;
+		}
+
+		public static List<T> AddToBack<T> (this List<T> list, IEnumerable<T> items)
+		{
+			list.AddRange (items);
 			return list;
 		}
 

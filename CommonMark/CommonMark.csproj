@@ -48,6 +48,7 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Autolinks.cs" />
     <Compile Include="BackslashEscapes.cs" />
     <Compile Include="CodeSpans.cs" />
     <Compile Include="EntityAndNumericCharReferences.cs" />

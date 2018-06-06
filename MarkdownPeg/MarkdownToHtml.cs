@@ -3,7 +3,6 @@
 	using System;
 	using System.Linq;
 	using PegCombinator;
-	using System.Text;
 
 	public class MarkdownToHtml : MarkdownParser
 	{
@@ -16,46 +15,21 @@
 
 		public MarkdownToHtml () : this (Environment.NewLine) { }
 
-		private string OpenTag (string tagName) =>
-			string.Format ("<{0}>", tagName);
-
-		private string CloseTag (string tagName) =>
-			string.Format ("</{0}>", tagName);
-
-		private string HtmlEncode (char ch)
-		{
-			switch (ch)
-			{
-				case '&': return "&amp;";
-				case '<': return "&lt;";
-				case '>': return "&gt;";
-				case '"': return "&quot;";
-				default: return new string (ch, 1);
-			}
-		}
-
-		private string HtmlEncode (string str)
-		{
-			if (str == null)
-				return null;
-			var res = new StringBuilder ();
-			for (int i = 0; i < str.Length; i++)
-				res.Append (HtmlEncode (str[i]));
-			return res.ToString ();
-		}
-
-		protected override StringTree ThematicBreak (long start, long end, StringTree text) =>
+		protected override StringTree ThematicBreak (long start, long end, 
+			StringTree text) =>
 			"<hr />" + _newline;
 
 		protected override StringTree Heading (long start, long end, int headingLevel,
 			StringTree headingText)
 		{
 			var tag = "h" + headingLevel;
-			return StringTree.From (OpenTag (tag), headingText, CloseTag (tag), _newline);
+			return StringTree.From (HtmlHelper.OpenTag (tag), headingText,
+				HtmlHelper.CloseTag (tag), _newline);
 		}
 
-		protected override StringTree Verbatim (long start, long end, string verbatimText) =>
-			StringTree.From ("<pre><code>", HtmlEncode (verbatimText), 
+		protected override StringTree Verbatim (long start, long end, 
+			string verbatimText) =>
+			StringTree.From ("<pre><code>", HtmlHelper.HtmlEncode (verbatimText), 
 				"</code></pre>", _newline);
 
 		protected override StringTree Paragraph (long start, long end, StringTree text) =>
@@ -67,8 +41,8 @@
 		protected override StringTree HardLineBreak (long start, long end, StringTree text) => 
 			"<br />" + _newline;
 
-		protected override StringTree Punctuation (long pos, char punctuation) => 
-			HtmlEncode (punctuation);
+		protected override StringTree Punctuation (long pos, char punctuation) =>
+			HtmlHelper.BasicEncode (punctuation);
 
 		protected override StringTree Emphasis (long start, long end, StringTree text) =>
 			StringTree.From ("<em>", text, "</em>");
@@ -95,17 +69,19 @@
 		protected override StringTree Link (long start, long end, StringTree text, 
 			string dest, string title)
 		{
-			dest = Uri.EscapeUriString (dest);
-			title = HtmlEncode (title);
+			dest = HtmlHelper.HtmlEncode (Uri.EscapeUriString (dest), 
+				HtmlHelper.ExtendedEncode);
+			title = HtmlHelper.HtmlEncode (title);
 			return StringTree.From ("<a href=\"", dest ?? StringTree.Empty, 
 				title != null ? "\" title=\"" + title : StringTree.Empty, 
 				"\">", text, "</a>");
 		}
 
-		protected override StringTree Image (long start, long end, StringTree alt, string dest, string title)
+		protected override StringTree Image (long start, long end, StringTree alt, 
+			string dest, string title)
 		{
 			dest = Uri.EscapeUriString (dest);
-			title = HtmlEncode (title);
+			title = HtmlHelper.HtmlEncode (title);
 			return StringTree.From ("<img src=\"", dest ?? StringTree.Empty,
 				"\" alt=\"", alt,
 				title != null ? "\" title=\"" + title : StringTree.Empty,
@@ -113,6 +89,6 @@
 		}
 
 		protected override StringTree CodeSpan (long start, long end, string code) => 
-			StringTree.From ("<code>", HtmlEncode (code), "</code>");
+			StringTree.From ("<code>", HtmlHelper.HtmlEncode (code), "</code>");
 	}
 }
