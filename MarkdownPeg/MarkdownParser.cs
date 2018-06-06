@@ -8,6 +8,11 @@
 	using PegCombinator;
 	using SP = PegCombinator.StringParser;
 
+	public enum HtmlTagType
+	{
+		OpenTag, ClosingTag, Comment, ProcessingInstruction, Declaration, CDataSection
+	}
+
 	public class MarkdownParser
     {
 		private Parser<StringTree, char> _doc;
@@ -71,6 +76,9 @@
 
 		protected virtual StringTree CodeSpan (long start, long end, string code) =>
 			"`" + code + "`";
+
+		protected virtual StringTree HtmlTag (long start, long end, HtmlTagType type,
+			string tag) => tag;
 		/*
 		## Helpers
 		*/
@@ -854,6 +862,134 @@
 					CharsToStringTree (startPos, bts))
 				.Trace ("Code");
 			/*
+			#### Raw HTML
+			*/
+			var TagName =
+				(from fst in SP.AsciiLetter
+				 from rest in SP.AsciiAlphaNumeric
+					 .Or (SP.Char ('-'))
+					 .ZeroOrMore ()
+				 select rest.AddToFront (fst).AsString ())
+				.Trace ("TagName");
+
+			var AttributeName =
+				(from fst in SP.AsciiLetter.Or (SP.OneOf ('_', ':'))
+				 from rest in SP.AsciiAlphaNumeric
+					 .Or (SP.OneOf ('_', '.', ':', '-'))
+					 .ZeroOrMore ()
+				 select rest.AddToFront (fst).AsString ())
+				.Trace ("AttributeName");
+
+			var UnquotedAttributeValue =
+				SP.NoneOf (' ', '"', '\'', '=', '<', '>', '`')
+				.OneOrMore ()
+				.ToStringParser ()
+				.Trace ("UnquotedAttributeValue");
+
+			Parser<string, char> QuotedAttributeValue (char quote) =>
+				(from oq in SP.Char (quote)
+				 from val in SP.NoneOf (quote).ZeroOrMore ()
+				 from cq in SP.Char (quote)
+				 select val.AddToFront (oq).AddToBack (cq).AsString ())
+				.Trace ("QuotedAttributeValue: " + quote);
+
+			var AttributeValue =
+				(from ws1 in SP.OptionalWhitespace (null)
+				 from eq in SP.Char ('=')
+				 from ws2 in SP.OptionalWhitespace (null)
+				 from val in UnquotedAttributeValue
+					 .Or (QuotedAttributeValue ('\''))
+					 .Or (QuotedAttributeValue ('"'))
+				 select ws1 + eq + ws2 + val)
+				.Trace ("AttributeValue");
+
+			var Attribute =
+				(from ws in SP.Whitespace (null)
+				 from name in AttributeName
+				 from value in AttributeValue.Optional ("")
+				 select ws + name + value)
+				.Trace ("Attribute");
+
+			Parser<StringTree, char> OpenTag (long startPos) =>
+				(from name in TagName
+				 from attrs in Attribute.ZeroOrMore ()
+				 from ws in SP.OptionalWhitespace (null)
+				 from sl in SP.Char ('/').OptionalVal ()
+				 from gt in SP.Char ('>')
+				 from endPos in Parser.Position<char> ()
+				 select HtmlTag (startPos, endPos, HtmlTagType.OpenTag,
+					"<" + name + attrs.AsString () + ws + (sl.HasValue ? "/>" : ">")))
+				.Trace ("OpenTag");
+
+			Parser<StringTree, char> ClosingTag (long startPos) =>
+				(from lt in SP.Char ('/')
+				 from name in TagName
+				 from ws in SP.OptionalWhitespace (null)
+				 from gt in SP.Char ('>')
+				 from endPos in Parser.Position<char> ()
+				 select HtmlTag (startPos, endPos, HtmlTagType.ClosingTag,
+					"</" + name + ws + gt))
+				.Trace ("ClosingTag");
+
+			Parser<StringTree, char> HtmlComment (long startPos) =>
+				(from open in SP.String ("!--")
+				 from notend in SP.String (">").Or (SP.String ("->")).Not ()
+				 from text in SP.String ("--").Not ()
+					 .Then (SP.AnyChar)
+					 .ZeroOrMore ()
+				 from close in SP.String ("-->")
+				 from endPos in Parser.Position<char> ()
+				 select HtmlTag (startPos, endPos, HtmlTagType.Comment,
+					"<!--" + text.AsString () + close))
+				.Trace ("HtmlComment");
+
+			Parser<StringTree, char> ProcessingInstruction (long startPos) =>
+				(from open in SP.Char ('?')
+				 from text in SP.String ("?>").Not ()
+					 .Then (SP.AnyChar)
+					 .ZeroOrMore ()
+				 from close in SP.String ("?>")
+				 from endPos in Parser.Position<char> ()
+				 select HtmlTag (startPos, endPos, HtmlTagType.ProcessingInstruction,
+					"<?" + text.AsString () + close))
+				.Trace ("ProcessingInstruction");
+
+			Parser<StringTree, char> CDataSection (long startPos) =>
+				(from open in SP.String ("![CDATA[")
+				 from text in SP.String ("]]>").Not ()
+					 .Then (SP.AnyChar)
+					 .ZeroOrMore ()
+				 from close in SP.String ("]]>")
+				 from endPos in Parser.Position<char> ()
+				 select HtmlTag (startPos, endPos, HtmlTagType.CDataSection,
+					"<![CDATA[" + text.AsString () + close))
+				.Trace ("CDataSection");
+
+			Parser<StringTree, char> Declaration (long startPos) =>
+				(from open in SP.Char ('!')
+				 from name in SP.Upper.OneOrMore ()
+				 from ws in SP.Whitespace (null)
+				 from text in SP.Char ('>').Not ()
+					 .Then (SP.AnyChar)
+					 .ZeroOrMore ()
+				 from close in SP.Char ('>')
+				 from endPos in Parser.Position<char> ()
+				 select HtmlTag (startPos, endPos, HtmlTagType.Declaration,
+					"<!" + name + ws + text.AsString () + close))
+				.Trace ("Declaration");
+
+			var AnyTag =
+				(from startPos in Parser.Position<char> ()
+				 from lt in SP.Char ('<')
+				 from tag in OpenTag (startPos)
+					 .Or (ClosingTag (startPos))
+					 .Or (ProcessingInstruction (startPos))
+					 .Or (CDataSection (startPos))
+					 .Or (Declaration (startPos))
+				 select tag)
+				.Trace ("AnyTag");
+
+			/*
 			#### Main Inline Selector
 			*/
 			Inline.Target =
@@ -861,6 +997,7 @@
 				.Or (AnyLink)
 				.Or (AnyImage)
 				.Or (Autolink)
+				.Or (AnyTag)
 				.Or (Emphasized)
 				.Or (Code)
 				.Or (SpaceBetweenWords)

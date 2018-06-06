@@ -146,16 +146,16 @@
 		/// expects find some whitespace, or else it fails.
 		/// </summary>
 		public static Parser<string, char> Whitespace (string result = "") =>
-			from _ in WhitespaceChar.OneOrMore ()
-			select result;
+			from ws in WhitespaceChar.OneOrMore ()
+			select result ?? ws.AsString ();
 
 		public static Parser<string, char> OptionalWhitespace (string result = "") =>
-			from _ in WhitespaceChar.ZeroOrMore ()
-			select result;
+			from ws in WhitespaceChar.ZeroOrMore ()
+			select result ?? ws.AsString ();
 
 		public static Parser<string, char> AsciiWhitespace (string result = "") =>
-			from _ in AsciiWhitespaceChar.OneOrMore ()
-			select result;
+			from ws in AsciiWhitespaceChar.OneOrMore ()
+			select result ?? ws.AsString ();
 
 		public static readonly Parser<string, char> SpacesOrTabs =
 			from s in OneOf (' ', '\t').OneOrMore ()

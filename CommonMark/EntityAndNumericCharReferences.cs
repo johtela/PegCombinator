@@ -45,7 +45,7 @@
 		[TestMethod]
 		public void Example308 () => TestParse (
 			"<a href=\"&ouml;&ouml;.html\">", 
-			"<a href=\"&ouml;&ouml;.html\">");
+			"<p><a href=\"&ouml;&ouml;.html\"></p>");
 
 		/* [Example 309](http://spec.commonmark.org/0.28/#example-309) */
 		[TestMethod]
