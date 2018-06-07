@@ -52,11 +52,16 @@
     <Compile Include="BackslashEscapes.cs" />
     <Compile Include="CodeSpans.cs" />
     <Compile Include="EntityAndNumericCharReferences.cs" />
+    <Compile Include="HardLineBreaks.cs" />
     <Compile Include="Images.cs" />
+    <Compile Include="RawHtml.cs" />
+    <Compile Include="SetextHeadings.cs" />
+    <Compile Include="SoftLineBreaks.cs" />
     <Compile Include="Tabs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TestBase.cs" />
     <Compile Include="AtxHeadings.cs" />
+    <Compile Include="TextualContent.cs" />
     <Compile Include="ThematicBreaks.cs" />
     <Compile Include="Emphasis.cs" />
     <Compile Include="Links.cs" />

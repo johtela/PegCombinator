@@ -16,9 +16,13 @@
 	public class MarkdownParser
     {
 		private Parser<StringTree, char> _doc;
+		protected string _newline;
 
-		public MarkdownParser () => 
+		public MarkdownParser (string newline)
+		{
+			_newline = newline;
 			_doc = Doc ();
+		}
 
 		public string Run (IParserInput<char> input) => 
 			_doc.Parse (input.TerminateWith ('\n')).ToString ();
@@ -149,7 +153,7 @@
 		*/
 		private Parser<StringTree, char> Doc ()
 		{
-			Parser.Debugging = false;
+			Parser.Debugging = true;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -213,7 +217,7 @@
 				(from bls in SP.BlankLine (true).ZeroOrMore ()
 				 from text in NonblankIndentedLine.OneOrMore ()
 				 select (bls.IsEmpty () ? text :
-					 bls.Select (_ => Environment.NewLine).Concat (text))
+					 bls.Select (_ => _newline).Concat (text))
 					 .AsString ())
 				.Trace ("VerbatimChunk");
 
@@ -246,9 +250,7 @@
 					(StringTree)rule + sp + nl))
 				.Trace ("ThemaBreak");
 			/*
-			### Inlines
-
-			#### Determination Rules
+			### Block Selection Rules
 			*/
 			var NotAtEnd = SP.AnyChar.Trace ("NotAtEnd");
 
@@ -270,8 +272,11 @@
 
 			var SetextUnderline =
 				(from ni in NonindentSpace
-				 from ul in SP.Char ('=').Or (SP.Char ('-')).OneOrMore ()
-				 select ni + ul)
+				 from ul in SP.Char ('=').OneOrMore ()
+					.Or (SP.Char ('-').OneOrMore ())
+				 from ws in OptionalSpace
+				 from nl in SP.NewLine
+				 select ni + ul.AsString () + ws + nl)
 				.Trace ("SetextUnderline");
 
 			var IsNormalLine =
@@ -284,6 +289,8 @@
 				 select true)
 				.Trace ("IsNormalLine");
 			/*
+			### Inlines
+
 			#### Line Breaks
 			*/
 			var EndLine =
@@ -393,6 +400,7 @@
 			var SpaceBetweenWords =
 				(from startPos in Parser.Position<char> ()
 				 from sp in SP.SpacesOrTabs
+				 from notnl in SP.NewLine.Not ()
 				 from endPos in Parser.Position<char> ()
 				 select Space (startPos, endPos, sp))
 				.Trace ("SpaceBetweenWords");
@@ -975,7 +983,7 @@
 				 from close in SP.Char ('>')
 				 from endPos in Parser.Position<char> ()
 				 select HtmlTag (startPos, endPos, HtmlTagType.Declaration,
-					"<!" + name + ws + text.AsString () + close))
+					"<!" + name.AsString () + ws + text.AsString () + close))
 				.Trace ("Declaration");
 
 			var AnyTag =
@@ -983,6 +991,7 @@
 				 from lt in SP.Char ('<')
 				 from tag in OpenTag (startPos)
 					 .Or (ClosingTag (startPos))
+					 .Or (HtmlComment (startPos))
 					 .Or (ProcessingInstruction (startPos))
 					 .Or (CDataSection (startPos))
 					 .Or (Declaration (startPos))

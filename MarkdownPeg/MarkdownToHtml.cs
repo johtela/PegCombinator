@@ -6,12 +6,7 @@
 
 	public class MarkdownToHtml : MarkdownParser
 	{
-		private StringTree _newline;
-
-		public MarkdownToHtml (string newline)
-		{
-			_newline = newline;
-		}
+		public MarkdownToHtml (string newline) : base (newline) { }
 
 		public MarkdownToHtml () : this (Environment.NewLine) { }
 
