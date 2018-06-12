@@ -125,6 +125,7 @@
 			private Dictionary<string, LinkReference> _linkReferences =
 				new Dictionary<string, LinkReference> ();
 			private int _nestedImages;
+			private long _blockStop;
 
 			public void AddLinkReference (string label, string dest,
 				string title)
@@ -146,6 +147,15 @@
 
 			public bool InsideImage =>
 				_nestedImages > 0;
+
+			public void SetBlockStop (long endPos) =>
+				_blockStop = endPos;
+
+			public void ClearBlockStop () =>
+				_blockStop = 0;
+
+			public bool PastBlockStop (long pos)
+				=> _blockStop != 0 && pos > _blockStop;
 		}
 
 		/*
@@ -153,7 +163,7 @@
 		*/
 		private Parser<StringTree, char> Doc ()
 		{
-			Parser.Debugging = true;
+			Parser.Debugging = false;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -1070,18 +1080,22 @@
 			var IsSetextHeading =
 				(from lines in SetextLine.OneOrMore ()
 				 from ul in SetextUnderline
-				 select true)
+				 from endPos in Parser.Position<char> ()
+				 select endPos)
 				.Trace ("IsSetextHeading");
 
 			var SetextHeading =
-				(from issetext in IsSetextHeading.And ()
+				(from endPos in IsSetextHeading.And ()
 				 from ni in NonindentSpace
 				 from startPos in Parser.Position<char> ()
+				 from _ in Parser.ModifyState<ParseState, char> (
+					 st => st.SetBlockStop (endPos))
 				 from inlines in SetextInline.OneOrMore ()
+					.CleanupState<List<StringTree>, ParseState, char> (
+						 st => st.ClearBlockStop ())
 				 from sp in OptionalSpace
 				 from nl in SP.NewLine
 				 from ul in SetextUnderline
-				 from endPos in Parser.Position<char> ()
 				 select Heading (startPos, endPos, ul.Contains ("=") ? 1 : 2,
 					 inlines.ToStringTree ()))
 				.Trace ("SetextHeading");

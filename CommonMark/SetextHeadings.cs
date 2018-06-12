@@ -5,69 +5,69 @@
 	[TestClass]
 	public class SetextHeadings : TestBase
 	{
-		/* [Example 050](http://spec.commonmark.org/0.28/#example-050) */
+		/* [Example 50](http://spec.commonmark.org/0.28/#example-50) */
 		[TestMethod]
-		public void Example050 () => TestParse (
+		public void Example50 () => TestParse (
 			"Foo *bar*\n=========\n\nFoo *bar*\n---------", 
 			"<h1>Foo <em>bar</em></h1>\n<h2>Foo <em>bar</em></h2>");
 
-		/* [Example 051](http://spec.commonmark.org/0.28/#example-051) */
+		/* [Example 51](http://spec.commonmark.org/0.28/#example-51) */
 		[TestMethod]
-		public void Example051 () => TestParse (
+		public void Example51 () => TestParse (
 			"Foo *bar\nbaz*\n====", 
 			"<h1>Foo <em>bar\nbaz</em></h1>");
 
-		/* [Example 052](http://spec.commonmark.org/0.28/#example-052) */
+		/* [Example 52](http://spec.commonmark.org/0.28/#example-52) */
 		[TestMethod]
-		public void Example052 () => TestParse (
+		public void Example52 () => TestParse (
 			"Foo\n-------------------------\n\nFoo\n=", 
 			"<h2>Foo</h2>\n<h1>Foo</h1>");
 
-		/* [Example 053](http://spec.commonmark.org/0.28/#example-053) */
+		/* [Example 53](http://spec.commonmark.org/0.28/#example-53) */
 		[TestMethod]
-		public void Example053 () => TestParse (
+		public void Example53 () => TestParse (
 			"   Foo\n---\n\n  Foo\n-----\n\n  Foo\n  ===", 
 			"<h2>Foo</h2>\n<h2>Foo</h2>\n<h1>Foo</h1>");
 
-		/* [Example 054](http://spec.commonmark.org/0.28/#example-054) */
+		/* [Example 54](http://spec.commonmark.org/0.28/#example-54) */
 		[TestMethod]
-		public void Example054 () => TestParse (
+		public void Example54 () => TestParse (
 			"    Foo\n    ---\n\n    Foo\n---", 
 			"<pre><code>Foo\n---\n\nFoo\n</code></pre>\n<hr />");
 
-		/* [Example 055](http://spec.commonmark.org/0.28/#example-055) */
+		/* [Example 55](http://spec.commonmark.org/0.28/#example-55) */
 		[TestMethod]
-		public void Example055 () => TestParse (
+		public void Example55 () => TestParse (
 			"Foo\n   ----      ", 
 			"<h2>Foo</h2>");
 
-		/* [Example 056](http://spec.commonmark.org/0.28/#example-056) */
+		/* [Example 56](http://spec.commonmark.org/0.28/#example-56) */
 		[TestMethod]
-		public void Example056 () => TestParse (
+		public void Example56 () => TestParse (
 			"Foo\n    ---", 
 			"<p>Foo\n---</p>");
 
-		/* [Example 057](http://spec.commonmark.org/0.28/#example-057) */
+		/* [Example 57](http://spec.commonmark.org/0.28/#example-57) */
 		[TestMethod]
-		public void Example057 () => TestParse (
+		public void Example57 () => TestParse (
 			"Foo\n= =\n\nFoo\n--- -", 
 			"<p>Foo\n= =</p>\n<p>Foo</p>\n<hr />");
 
-		/* [Example 058](http://spec.commonmark.org/0.28/#example-058) */
+		/* [Example 58](http://spec.commonmark.org/0.28/#example-58) */
 		[TestMethod]
-		public void Example058 () => TestParse (
+		public void Example58 () => TestParse (
 			"Foo  \n-----", 
 			"<h2>Foo</h2>");
 
-		/* [Example 059](http://spec.commonmark.org/0.28/#example-059) */
+		/* [Example 59](http://spec.commonmark.org/0.28/#example-59) */
 		[TestMethod]
-		public void Example059 () => TestParse (
+		public void Example59 () => TestParse (
 			"Foo\\\n----", 
 			"<h2>Foo\\</h2>");
 
-		/* [Example 060](http://spec.commonmark.org/0.28/#example-060) */
+		/* [Example 60](http://spec.commonmark.org/0.28/#example-60) */
 		[TestMethod]
-		public void Example060 () => TestParse (
+		public void Example60 () => TestParse (
 			"`Foo\n----\n`\n\n<a title=\"a lot\n---\nof dashes\"/>", 
 			"<h2>`Foo</h2>\n<p>`</p>\n<h2>&lt;a title=&quot;a lot</h2>\n<p>of dashes&quot;/&gt;</p>");
 	}
