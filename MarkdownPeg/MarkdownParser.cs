@@ -193,7 +193,7 @@
 				 select ws1 + nl + ws2)
 				.Trace ("OptionalWsWithUpTo1NL");
 			/*
-			### Text Lines
+			### Nonempty Lines
 			*/
 			var Line =
 				(from chs in SP.NoneOf ('\r', '\n').ZeroOrMore ()
@@ -215,7 +215,10 @@
 				.Trace ("Indent");
 
 			var IndentedLine =
-				Indent.Then (Line).Trace ("IndentedLine");
+				(from ind in Indent
+				 from line in Line
+				 select Tuple.Create (ind, line))
+				.Trace ("IndentedLine");
 
 			var NonblankIndentedLine =
 				(from nb in SP.BlankLine ().Not ()
@@ -225,10 +228,14 @@
 
 			var VerbatimChunk =
 				(from bls in SP.BlankLine (true).ZeroOrMore ()
-				 from text in NonblankIndentedLine.OneOrMore ()
+				 from nbls in NonblankIndentedLine.OneOrMore ()
+				 let ind = nbls[0].Item1
+				 let text = nbls.Select (TupleExt.Second)
 				 select (bls.IsEmpty () ? text :
-					 bls.Select (_ => _newline).Concat (text))
-					 .AsString ())
+					 bls.Select (b => 
+						b.StartsWith (ind) ? b.Remove (0, ind.Length) : _newline)
+					.Concat (text))
+					.AsString ())
 				.Trace ("VerbatimChunk");
 
 			var VerbatimBlock =
@@ -298,6 +305,14 @@
 				 from notthmbrk in ThemaBreak.Not ()
 				 select true)
 				.Trace ("IsNormalLine");
+
+			var EndPosInsideBlock =
+				 (from endPos in Parser.Position<char> ()
+				  from st in Parser.GetState<ParseState, char> ()
+				  where !st.PastBlockStop (endPos)
+				  select endPos)
+				 .Trace ("EndPosInsideBlock");
+
 			/*
 			### Inlines
 
@@ -497,7 +512,7 @@
 					 from lfd in LeftFlankDelimRun ('*')
 					 from startPos in Parser.Position<char> ()
 					 from ils in EmphInlines (delim, lfd, AsteriskEmphEnd)
-					 from endPos in Parser.Position<char> ()
+					 from endPos in EndPosInsideBlock
 					 from cd in emphDelim
 					 from rfd in AsteriskEmphEnd
 					 from st in Parser.GetState<ParseState, char> ()
@@ -518,7 +533,7 @@
 						.Or (DelimPrecededBy ('_', SP.Punctuation).Select (_ => 0))
 					 from startPos in Parser.Position<char> ()
 					 from ils in EmphInlines (delim, lfd, UnderscoreEmphEnd)
-					 from endPos in Parser.Position<char> ()
+					 from endPos in EndPosInsideBlock
 					 from cd in emphDelim
 					 from rfd in UnderscoreEmphEnd
 					 from st in Parser.GetState<ParseState, char> ()
@@ -610,7 +625,7 @@
 				 from title in LinkTitle.OptionalRef ()
 				 from ws3 in SP.WhitespaceChar.ZeroOrMore ()
 				 from cp in SP.Char (')')
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 from st in Parser.GetState<ParseState, char> ()
 				 select st.InsideImage ?
 						text :
@@ -644,7 +659,7 @@
 				StringTree text) =>
 				(from labelStart in Parser.Position<char> ()
 				 from label in LinkLabel
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 from st in Parser.GetState<ParseState, char> ()
 				 select StringTree.Lazy (() =>
 				 {
@@ -670,7 +685,7 @@
 				long startPos, StringTree text) =>
 				(from label in LinkLabel.OptionalRef ().Backtrack (startPos)
 				 from brackets in SP.String ("[]").OptionalRef ()
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 from st in Parser.GetState<ParseState, char> ()
 				 select StringTree.Lazy (() =>
 				 {
@@ -721,7 +736,7 @@
 				 from title in LinkTitle.OptionalRef ()
 				 from ws3 in SP.WhitespaceChar.ZeroOrMore ()
 				 from cp in SP.Char (')')
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 from st in Parser.GetState<ParseState, char> ()
 				 select st.InsideImage ? alt :
 					Image (startPos, endPos, alt,
@@ -733,7 +748,7 @@
 				StringTree alt) =>
 				(from labelStart in Parser.Position<char> ()
 				 from label in LinkLabel
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 from st in Parser.GetState<ParseState, char> ()
 				 select StringTree.Lazy (() =>
 				 {
@@ -750,7 +765,7 @@
 				long startPos, StringTree alt) =>
 				(from label in LinkLabel.OptionalRef ().Backtrack (startPos + 1)
 				 from brackets in SP.String ("[]").OptionalRef ()
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 from st in Parser.GetState<ParseState, char> ()
 				 select StringTree.Lazy (() =>
 				 {
@@ -841,7 +856,7 @@
 				 from addr in UriAutolink
 					.Or (EmailAddress)
 				 from gt in SP.Char ('>')
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 let dest = addr.Item1 ?
 					"mailto:" + addr.Item2 : 
 					addr.Item2
@@ -874,7 +889,7 @@
 				 let len = bts.Length
 				 let close = BacktickString.Where (bs => bs.Length == len)
 				 from code in CodeContent (close).OptionalRef ()
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 select code != null ?
 					CodeSpan (startPos, endPos, code) :
 					CharsToStringTree (startPos, bts))
@@ -934,7 +949,7 @@
 				 from ws in SP.OptionalWhitespace (null)
 				 from sl in SP.Char ('/').OptionalVal ()
 				 from gt in SP.Char ('>')
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 select HtmlTag (startPos, endPos, HtmlTagType.OpenTag,
 					"<" + name + attrs.AsString () + ws + (sl.HasValue ? "/>" : ">")))
 				.Trace ("OpenTag");
@@ -944,7 +959,7 @@
 				 from name in TagName
 				 from ws in SP.OptionalWhitespace (null)
 				 from gt in SP.Char ('>')
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 select HtmlTag (startPos, endPos, HtmlTagType.ClosingTag,
 					"</" + name + ws + gt))
 				.Trace ("ClosingTag");
@@ -956,7 +971,7 @@
 					 .Then (SP.AnyChar)
 					 .ZeroOrMore ()
 				 from close in SP.String ("-->")
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 select HtmlTag (startPos, endPos, HtmlTagType.Comment,
 					"<!--" + text.AsString () + close))
 				.Trace ("HtmlComment");
@@ -967,7 +982,7 @@
 					 .Then (SP.AnyChar)
 					 .ZeroOrMore ()
 				 from close in SP.String ("?>")
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 select HtmlTag (startPos, endPos, HtmlTagType.ProcessingInstruction,
 					"<?" + text.AsString () + close))
 				.Trace ("ProcessingInstruction");
@@ -978,7 +993,7 @@
 					 .Then (SP.AnyChar)
 					 .ZeroOrMore ()
 				 from close in SP.String ("]]>")
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 select HtmlTag (startPos, endPos, HtmlTagType.CDataSection,
 					"<![CDATA[" + text.AsString () + close))
 				.Trace ("CDataSection");
@@ -991,7 +1006,7 @@
 					 .Then (SP.AnyChar)
 					 .ZeroOrMore ()
 				 from close in SP.Char ('>')
-				 from endPos in Parser.Position<char> ()
+				 from endPos in EndPosInsideBlock
 				 select HtmlTag (startPos, endPos, HtmlTagType.Declaration,
 					"<!" + name.AsString () + ws + text.AsString () + close))
 				.Trace ("Declaration");
@@ -1066,7 +1081,9 @@
 			#### Setext Headings
 			*/
 			var SetextInline =
-				(from notAtEnd in EndLine.Not ()
+				(from pos in Parser.Position<char> ()
+				 from st in Parser.GetState<ParseState, char> ()
+				 where !st.PastBlockStop (pos)
 				 from inline in Inline.Target
 				 select inline)
 				.Trace ("SetextInline");
@@ -1079,8 +1096,8 @@
 
 			var IsSetextHeading =
 				(from lines in SetextLine.OneOrMore ()
-				 from ul in SetextUnderline
 				 from endPos in Parser.Position<char> ()
+				 from ul in SetextUnderline
 				 select endPos)
 				.Trace ("IsSetextHeading");
 

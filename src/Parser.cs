@@ -368,12 +368,6 @@
 			return input => parser.Target (input);
 		}
 
-		public static Parser<int, S> Count<T, S> (this Parser<T, S> parser)
-		{
-			return from list in parser.ZeroOrMore ()
-				   select list.Count ();
-		}
-
 		public static Parser<T, S> GetState<T, S> ()
 		{
 			return input => ParseResult<T>.Succeeded (input.Position, (T)input.State);
@@ -403,14 +397,5 @@
 				return res;
 			};
 		}
-
-		/// <summary>
-		/// Upcast the result of the parser.
-		/// </summary>
-		public static Parser<U, S> Cast<T, U, S> (this Parser<T, S> parser) where T : U
-        {
-            return from x in parser
-                   select (U)x;
-        }
     }
 }
