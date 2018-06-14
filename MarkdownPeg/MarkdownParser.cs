@@ -46,6 +46,9 @@
 		protected virtual StringTree Verbatim (long start, long end,
 			string verbatimText) => verbatimText;
 
+		protected virtual StringTree CodeBlock (long start, long end,
+			string codeBlock, string infoString) => codeBlock;
+
 		protected virtual StringTree Paragraph (long start, long end,
 			StringTree text) => text;
 
@@ -103,6 +106,17 @@
 
 		private bool IsPunctuation (char c) =>
 			char.IsPunctuation (c) || c.In ('<', '>', '`');
+
+		private string TrimLeadingSpaces (string str, int maxSpaces)
+		{
+			var cnt = Math.Min (str.Length, maxSpaces);
+			var i = 0;
+			while (i < cnt && str[i] == ' ')
+				i++;
+			return i == 0 ? str :
+				str.Remove (0, i);
+		}
+
 		/*
 		## Parsing State
 		*/
@@ -198,7 +212,7 @@
 			var Line =
 				(from chs in SP.NoneOf ('\r', '\n').ZeroOrMore ()
 				 from nl in SP.NewLine
-				 select chs.IsEmpty () ? nl : chs.ToString ("", "", nl))
+				 select chs.IsEmpty () ? _newline : chs.ToString ("", "", _newline))
 				.Trace ("Line");
 
 			var NonblankLine =
@@ -1117,7 +1131,42 @@
 					 inlines.ToStringTree ()))
 				.Trace ("SetextHeading");
 			/*
-			### Paragraphs
+			#### Fenced Code Block
+			*/
+			Parser<Tuple<string, string>, char> CodeFence (char ch, int minLen) =>
+				(from ni in NonindentSpace
+				 from ts in SP.Char (ch).Occurrences (minLen, int.MaxValue)
+				 select Tuple.Create (ni, ts.AsString ()))
+				.Trace (string.Format ("CodeFence '{0}' minlen: {1}", ch, minLen));
+
+			var InfoString =
+				(from ws in OptionalSpace
+				 from ch in EntityAsString
+					 .Or (EscapedChar.ToStringParser ())
+					 .Or (SP.NoneOf ('`', '\n', '\r').ToStringParser ())
+					.ZeroOrMore ()
+				 from nl in SP.NewLine
+				 let info = ch.AsString ().TrimEnd ()
+				 select string.IsNullOrEmpty (info) ? null : info)
+				.Trace ("InfoString");
+
+			var FencedCodeBlock =
+				(from startPos in Parser.Position<char> ()
+				 from open in CodeFence ('`', 3)
+					 .Or (CodeFence ('~', 3))
+				 from info in InfoString
+				 let indlen = open.Item1.Length
+				 let closeFence = CodeFence (open.Item2[0], open.Item2.Length)
+				 from lines in closeFence.Not ()
+					 .Then (Line).ZeroOrMore ()
+				 from close in closeFence
+				 from endPos in Parser.Position<char> ()
+				 let trimmed = lines.Select (l =>
+					 TrimLeadingSpaces (l, indlen)).AsString ()
+				 select CodeBlock (startPos, endPos, trimmed, info))
+				.Trace ("FencedCodeBlock");
+			/*
+			#### Paragraphs
 			*/
 			var Para =
 				(from ni in NonindentSpace
@@ -1132,6 +1181,7 @@
 				 from notend in NotAtEnd.And ()
 				 from startPos in Parser.Position<char> ()
 				 from block in VerbatimBlock
+					 .Or (FencedCodeBlock)
 					 .Or (AtxHeading)
 					 .Or (SetextHeading)
 					 .Or (ThemaBreak)

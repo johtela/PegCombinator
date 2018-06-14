@@ -27,6 +27,16 @@
 			StringTree.From ("<pre><code>", HtmlHelper.HtmlEncode (verbatimText), 
 				"</code></pre>", _newline);
 
+		protected override StringTree CodeBlock (long start, long end, 
+			string codeBlock, string infoString) =>
+			StringTree.From (
+				infoString == null ? 
+					"<pre><code>" :
+					string.Format ("<pre><code class=\"language-{0}\">",
+						infoString.Split (' ', '\t')[0]),
+				HtmlHelper.HtmlEncode (codeBlock),
+				"</code></pre>", _newline);
+
 		protected override StringTree Paragraph (long start, long end, StringTree text) =>
 			StringTree.From ("<p>", text, "</p>", _newline);
 
