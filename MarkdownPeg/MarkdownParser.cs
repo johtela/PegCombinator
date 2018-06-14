@@ -288,6 +288,12 @@
 			Parser<string, char> AtEnd (string res) =>
 				SP.AnyChar.Not ().Select (_ => res);
 
+			Parser<Tuple<string, string>, char> CodeFence (char ch, int minLen) =>
+				(from ni in NonindentSpace
+				 from ts in SP.Char (ch).Occurrences (minLen, int.MaxValue)
+				 select Tuple.Create (ni, ts.AsString ()))
+				.Trace (string.Format ("CodeFence '{0}' minlen: {1}", ch, minLen));
+
 			var AtxStart =
 				(from ni in NonindentSpace
 				 from cs in SP.Char ('#').Occurrences (1, 6)
@@ -300,6 +306,13 @@
 				 from gt in SP.Char ('>')
 				 select true)
 				.Trace ("IsBlockQuote");
+
+			var IsFencedCodeBlock =
+				(from ni in NonindentSpace
+				 from fence in CodeFence ('`', 3)
+					.Or (CodeFence ('~', 3))
+				 select true)
+				.Trace ("IsFencedCodeBlock");
 
 			var SetextUnderline =
 				(from ni in NonindentSpace
@@ -317,6 +330,7 @@
 				 from notatx in AtxStart.Not ()
 				 from notsetext in SetextUnderline.Not ()
 				 from notthmbrk in ThemaBreak.Not ()
+				 from notcodefence in IsFencedCodeBlock.Not ()
 				 select true)
 				.Trace ("IsNormalLine");
 
@@ -1133,12 +1147,6 @@
 			/*
 			#### Fenced Code Block
 			*/
-			Parser<Tuple<string, string>, char> CodeFence (char ch, int minLen) =>
-				(from ni in NonindentSpace
-				 from ts in SP.Char (ch).Occurrences (minLen, int.MaxValue)
-				 select Tuple.Create (ni, ts.AsString ()))
-				.Trace (string.Format ("CodeFence '{0}' minlen: {1}", ch, minLen));
-
 			var InfoString =
 				(from ws in OptionalSpace
 				 from ch in EntityAsString
@@ -1157,9 +1165,11 @@
 				 from info in InfoString
 				 let indlen = open.Item1.Length
 				 let closeFence = CodeFence (open.Item2[0], open.Item2.Length)
+					.Then (OptionalSpace)
+					.Then (SP.NewLine)
 				 from lines in closeFence.Not ()
 					 .Then (Line).ZeroOrMore ()
-				 from close in closeFence
+				 from close in closeFence.OptionalRef ()
 				 from endPos in Parser.Position<char> ()
 				 let trimmed = lines.Select (l =>
 					 TrimLeadingSpaces (l, indlen)).AsString ()
