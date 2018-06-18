@@ -8,7 +8,8 @@
 
     public static class CollectionParsers
     {
-		public static Parser<E, T> List<E, T> (E expect) where E : IEnumerable<T>
+		public static Parser<E, T> List<E, T> (E expect, Func<T, T, bool> equals) 
+			where E : IEnumerable<T>
 		{
 			return input =>
 			{
@@ -21,7 +22,7 @@
 						return ParseResult<E>.Failed (input.Position, "end of input");
 					}
 					var item = input.Current;
-					if (!item.Equals (e))
+					if (!equals (item, e))
 					{
 						input.Position = pos;
 						return ParseResult<E>.Failed (input.Position, item.ToString ());
@@ -30,6 +31,9 @@
 				return ParseResult<E>.Succeeded (input.Position, expect);
 			};
 		}
+
+		public static Parser<E, T> List<E, T> (E expect) where E : IEnumerable<T> =>
+			List<E, T> (expect, (i1, i2) => i1.Equals (i2));
 
 		/// <summary>
 		/// Creates a parser that will read a list of items separated by a separator.

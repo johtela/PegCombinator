@@ -49,6 +49,9 @@
 		protected virtual StringTree CodeBlock (long start, long end,
 			string codeBlock, string infoString) => codeBlock;
 
+		protected virtual StringTree HtmlBlock (long start, long end,
+			StringTree htmlBlock) => htmlBlock;
+
 		protected virtual StringTree Paragraph (long start, long end,
 			StringTree text) => text;
 
@@ -1175,6 +1178,69 @@
 					 TrimLeadingSpaces (l, indlen)).AsString ()
 				 select CodeBlock (startPos, endPos, trimmed, info))
 				.Trace ("FencedCodeBlock");
+			/*
+			#### HTML Blocks
+			*/
+			Parser<string, char> StartTag (Parser<string, char> tagName) =>
+				from tag in tagName
+				from ws in OptionalSpace
+				from gt in SP.Char ('>')
+				from nl in SP.NewLine
+				select tag + ws + gt + nl;
+
+			Parser<string, char> EndTag (Parser<string, char> tagName) =>
+				from lt in SP.Char ('<')
+				from sl in SP.Char ('/')
+				from tag in tagName
+				from gt in SP.Char ('>')
+				select lt + sl + tag + gt;
+
+			Parser<string, char> HtmlLine (Parser<string, char> endMarker) =>
+				(from ln in endMarker.Not ()
+					.Then (SP.NoneOf ('\r', '\n'))
+					.ZeroOrMore ()
+				 select ln.AsString ())
+				.Trace ("HTML block line");
+
+			Parser<StringTree, char> HtmlBlock (Parser<string, char> start,
+				Parser<string, char> end) =>
+				from s in start
+				from lines in HtmlLine (end).ZeroOrMore ()
+				from e in end
+				from rest in Line
+				select StringTree.From (s, lines.ToStringTree (), e, rest);
+
+			var Tag1 = SP.CaseInsensitiveString ("script")
+				.Or (SP.CaseInsensitiveString ("pre"))
+				.Or (SP.CaseInsensitiveString ("style"));
+
+			var HtmlBlock1 = HtmlBlock (StartTag (Tag1), EndTag (Tag1))
+				.Trace ("HtmlBlock1 (<script>, <pre>, <style>)");
+
+			var HtmlBlock2 = HtmlBlock (SP.String ("!--"), SP.String ("-->"))
+				.Trace ("HtmlBlock2 (<!-- comment -->)");
+
+			var HtmlBlock3 = HtmlBlock (SP.String ("?"), SP.String ("?>"))
+				.Trace ("HtmlBlock3 (<? processing instruction ?>)");
+
+			var HtmlBlock4 = HtmlBlock (SP.String ("![CDATA["), SP.String ("]]>"))
+				.Trace ("HtmlBlock4 (<![CDATA[ cdata ]]>)");
+
+			var HtmlBlock5 = HtmlBlock (SP.String ("!"), SP.String (">"))
+				.Trace ("HtmlBlock5 (<! declaration >)");
+
+			var Start6 =
+				from sl1 in SP.Char ('/').OptionalVal ()
+				from tag in SP.VariableName
+				where HtmlHelper.ValidTag (tag)
+				from ws in OptionalSpace
+				from end in SP.NewLine
+					.Or (SP.String (">"))
+					.Or (SP.String ("/>"))
+				select sl1 + tag + ws + end;
+
+			//var End67 =
+
 			/*
 			#### Paragraphs
 			*/

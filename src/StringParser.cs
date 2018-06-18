@@ -20,6 +20,10 @@
 		public static Parser<char, char> Char (char x) => 
 			Parser.Satisfy<char> (y => x == y).Expect (x.ToString ());
 
+		public static Parser<char, char> CaseInsensitiveChar (char x) =>
+			Parser.Satisfy<char> (y => char.ToLower (x) == char.ToLower (y))
+				.Expect (x.ToString ());
+
 		/// <summary>
 		/// Parse a number [0-9]
 		/// </summary>
@@ -90,8 +94,16 @@
 		/// </summary>
 		/// <returns></returns>
 		public static readonly Parser<string, char> Word =
-			from xs in Letter.OneOrMore ()
-			select xs.AsString ();
+			(from xs in Letter.OneOrMore ()
+			 select xs.AsString ())
+			.Expect ("Word containing one or more letters");
+
+		public static readonly Parser<string, char> VariableName =
+			(from lt in Letter
+			 from an in AlphaNumeric.ZeroOrMore ()
+			 select an.AddToFront (lt).AsString ())
+			.Expect ("Variable name starting with a letter and followed " +
+				"by optional alphanumeric characters");
 
 		/// <summary>
 		/// Parse a character that is in the set of given characters.
@@ -117,7 +129,13 @@
 		/// Parse a given string.
 		/// </summary>
 		public static Parser<string, char> String (string str) => 
-			CollectionParsers.List<string, char> (str).Expect (str);
+			CollectionParsers.List<string, char> (str, (c1, c2) => c1 == c2)
+			.Expect (str);
+
+		public static Parser<string, char> CaseInsensitiveString (string str) =>
+			CollectionParsers.List<string, char> (str, 
+				(c1, c2) => char.ToLower (c1) == char.ToLower (c2))
+			.Expect (str + " (case insensitive)");
 
 		/// <summary>
 		/// Parse a positive integer without a leading '+' character.
