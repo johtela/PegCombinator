@@ -193,6 +193,8 @@
 				.Not ()
 				.Then (SP.AnyChar)
 				.Trace ("NormalChar");
+
+			var Position = Parser.Position<char> ();
 			/*
 			### Whitespace
 			*/
@@ -256,9 +258,9 @@
 				.Trace ("VerbatimChunk");
 
 			var VerbatimBlock =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from chunks in VerbatimChunk.OneOrMore ()
-				 from endPos in Parser.Position<char> ()
+				 from endPos in Position
 				 select Verbatim (startPos, endPos, chunks.AsString ()))
 				.Trace ("VerbatimBlock");
 			/*
@@ -275,9 +277,9 @@
 
 			var ThemaBreak =
 				(from ni in NonindentSpace
-				 from startPos in Parser.Position<char> ()
+				 from startPos in Position
 				 from rule in TB ('*').Or (TB ('-')).Or (TB ('_'))
-				 from endPos in Parser.Position<char> ()
+				 from endPos in Position
 				 from sp in OptionalSpace
 				 from nl in SP.NewLine
 				 select ThematicBreak (startPos, endPos, 
@@ -326,6 +328,8 @@
 				 select ni + ul.AsString () + ws + nl)
 				.Trace ("SetextUnderline");
 
+			var IsHtmlBlock = new Ref<Parser<bool, char>> ();
+
 			var IsNormalLine =
 				(from notend in NotAtEnd.And ()
 				 from notbl in SP.BlankLine ().Not ()
@@ -334,11 +338,12 @@
 				 from notsetext in SetextUnderline.Not ()
 				 from notthmbrk in ThemaBreak.Not ()
 				 from notcodefence in IsFencedCodeBlock.Not ()
+				 from nothtmlblock in IsHtmlBlock.ForwardRef ().Not ()
 				 select true)
 				.Trace ("IsNormalLine");
 
 			var EndPosInsideBlock =
-				 (from endPos in Parser.Position<char> ()
+				 (from endPos in Position
 				  from st in Parser.GetState<ParseState, char> ()
 				  where !st.PastBlockStop (endPos)
 				  select endPos)
@@ -358,17 +363,17 @@
 				.Trace ("EndLine");
 
 			var SoftLB =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from el in EndLine
-				 from endPos in Parser.Position<char> ()
+				 from endPos in Position
 				 select SoftLineBreak (startPos, endPos, el))
 				.Trace ("SoftLB");
 
 			var HardLB =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from hb in SP.String ("  ").Or (SP.String ("\\"))
 				 from el in EndLine
-				 from endPos in Parser.Position<char> ()
+				 from endPos in Position
 				 select HardLineBreak (startPos, endPos, hb + el))
 				.Trace ("HardLB");
 
@@ -391,7 +396,7 @@
 				.Trace ("EscapedCharWithBackslash");
 
 			var BackslashEscape =
-				(from pos in Parser.Position<char> ()
+				(from pos in Position
 				 from c in EscapedChar
 				 select IsPunctuation (c) ?
 					 Punctuation (pos, c) : c)
@@ -414,7 +419,7 @@
 				.Trace ("EntityAsString");
 
 			var Entity =
-				(from pos in Parser.Position<char> ()
+				(from pos in Position
 				 from res in EntityAsString
 				 select CharsToStringTree (pos, res))
 				.Trace ("Entity");
@@ -437,7 +442,7 @@
 				.Trace ("NumericCharAsString");
 
 			var NumericChar =
-				(from pos in Parser.Position<char> ()
+				(from pos in Position
 				 from res in NumericCharAsString
 				 select CharsToStringTree (pos, res))
 				.Trace ("NumericChar");
@@ -445,19 +450,19 @@
 			#### Unformatted Text
 			*/
 			var UnformattedText =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from chars in NormalChar.OneOrMore ()
-				 from endPos in Parser.Position<char> ()
+				 from endPos in Position
 				 select Text (startPos, endPos, chars.AsString ()))
 				.Trace ("UnformattedText");
 			/*
 			#### Space between Words
 			*/
 			var SpaceBetweenWords =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from sp in SP.SpacesOrTabs
 				 from notnl in SP.NewLine.Not ()
-				 from endPos in Parser.Position<char> ()
+				 from endPos in Position
 				 select Space (startPos, endPos, sp))
 				.Trace ("SpaceBetweenWords");
 			/*
@@ -465,7 +470,7 @@
 			*/
 			var Punct =
 				(from punc in PunctChar
-				 from pos in Parser.Position<char> ()
+				 from pos in Position
 				 select Punctuation (pos, punc))
 				.Trace ("Punct");
 			/*
@@ -478,7 +483,7 @@
 			Parser<long, char> DelimFollowedBy (char delim, 
 				Parser<char, char> parser) =>
 				(from skip in SP.Char (delim).ZeroOrMore ()
-				 from p in Parser.Position<char> ()
+				 from p in Position
 				 from c in parser
 				 select p)
 				.And ();
@@ -486,7 +491,7 @@
 			Parser<long, char> DelimPrecededBy (char delim,
 				Parser<char, char> parser) =>
 				(from skip in SP.Char (delim).ZeroOrMore ()
-				 from p in Parser.Position<char> ()
+				 from p in Position
 				 from c in parser
 				 select p)
 				.LookBack ();
@@ -541,7 +546,7 @@
 				return
 					(from od in emphDelim
 					 from lfd in LeftFlankDelimRun ('*')
-					 from startPos in Parser.Position<char> ()
+					 from startPos in Position
 					 from ils in EmphInlines (delim, lfd, AsteriskEmphEnd)
 					 from endPos in EndPosInsideBlock
 					 from cd in emphDelim
@@ -562,7 +567,7 @@
 					 from lfd in LeftFlankDelimRun ('_')
 					 from notrfd in RightFlankDelimRun ('_').Not ()
 						.Or (DelimPrecededBy ('_', SP.Punctuation).Select (_ => 0))
-					 from startPos in Parser.Position<char> ()
+					 from startPos in Position
 					 from ils in EmphInlines (delim, lfd, UnderscoreEmphEnd)
 					 from endPos in EndPosInsideBlock
 					 from cd in emphDelim
@@ -688,7 +693,7 @@
 
 			Parser<StringTree, char> FullReferenceLink (long startPos,
 				StringTree text) =>
-				(from labelStart in Parser.Position<char> ()
+				(from labelStart in Position
 				 from label in LinkLabel
 				 from endPos in EndPosInsideBlock
 				 from st in Parser.GetState<ParseState, char> ()
@@ -734,7 +739,7 @@
 				.Trace ("CollapsedOrShortcutReferenceLink");
 
 			var AnyLink =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from text in LinkText
 				 from res in InlineLink (startPos, text)
 					 .Or (FullReferenceLink (startPos, text))
@@ -777,7 +782,7 @@
 
 			Parser<StringTree, char> FullReferenceImage (long startPos,
 				StringTree alt) =>
-				(from labelStart in Parser.Position<char> ()
+				(from labelStart in Position
 				 from label in LinkLabel
 				 from endPos in EndPosInsideBlock
 				 from st in Parser.GetState<ParseState, char> ()
@@ -814,7 +819,7 @@
 				.Trace ("CollapsedOrShortcutReferenceImage");
 
 			var AnyImage =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from em in SP.Char ('!')
 				 from _ in Parser.ModifyState<ParseState, char> (st => st.StartImage ())
 				 from alt in LinkText
@@ -882,7 +887,7 @@
 				.Trace ("EmailAddress");
 
 			var Autolink =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from lt in SP.Char ('<')
 				 from addr in UriAutolink
 					.Or (EmailAddress)
@@ -915,7 +920,7 @@
 				.Trace ("CodeContent");
 
 			var Code =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from bts in BacktickString
 				 let len = bts.Length
 				 let close = BacktickString.Where (bs => bs.Length == len)
@@ -944,92 +949,101 @@
 				 select rest.AddToFront (fst).AsString ())
 				.Trace ("AttributeName");
 
-			var UnquotedAttributeValue =
-				SP.NoneOf (' ', '"', '\'', '=', '<', '>', '`')
+			Parser<string, char> UnquotedAttributeValue (bool allowNewline) =>
+				(allowNewline ?
+					SP.NoneOf (' ', '"', '\'', '=', '<', '>', '`') :
+					SP.NoneOf (' ', '"', '\'', '=', '<', '>', '`', '\r', '\n'))
 				.OneOrMore ()
 				.ToStringParser ()
 				.Trace ("UnquotedAttributeValue");
 
-			Parser<string, char> QuotedAttributeValue (char quote) =>
+			Parser<string, char> QuotedAttributeValue (char quote, 
+				bool allowNewline) =>
 				(from oq in SP.Char (quote)
-				 from val in SP.NoneOf (quote).ZeroOrMore ()
+				 from val in (allowNewline ?
+						 SP.NoneOf (quote) :
+						 SP.NoneOf (quote, '\r', '\n'))
+					 .ZeroOrMore ()
 				 from cq in SP.Char (quote)
 				 select val.AddToFront (oq).AddToBack (cq).AsString ())
 				.Trace ("QuotedAttributeValue: " + quote);
 
-			var AttributeValue =
-				(from ws1 in SP.OptionalWhitespace (null)
+			Parser<string, char> AttributeValue (bool allowNewline) =>
+				(from ws1 in allowNewline ?
+					SP.OptionalWhitespace (null) :
+					OptionalSpace
 				 from eq in SP.Char ('=')
-				 from ws2 in SP.OptionalWhitespace (null)
-				 from val in UnquotedAttributeValue
-					 .Or (QuotedAttributeValue ('\''))
-					 .Or (QuotedAttributeValue ('"'))
+				 from ws2 in allowNewline ?
+					SP.OptionalWhitespace (null) :
+					OptionalSpace
+				 from val in UnquotedAttributeValue (allowNewline)
+					 .Or (QuotedAttributeValue ('\'', allowNewline))
+					 .Or (QuotedAttributeValue ('"', allowNewline))
 				 select ws1 + eq + ws2 + val)
 				.Trace ("AttributeValue");
 
-			var Attribute =
-				(from ws in SP.Whitespace (null)
+			Parser<string, char> Attribute (bool allowNewline) =>
+				(from ws in allowNewline ? 
+					SP.Whitespace (null) : 
+					SP.SpacesOrTabs
 				 from name in AttributeName
-				 from value in AttributeValue.Optional ("")
+				 from value in AttributeValue (allowNewline).Optional ("")
 				 select ws + name + value)
 				.Trace ("Attribute");
 
-			Parser<StringTree, char> OpenTag (long startPos) =>
+			Parser<Tuple<HtmlTagType, string>, char> OpenTag (bool allowNewline) =>
 				(from name in TagName
-				 from attrs in Attribute.ZeroOrMore ()
-				 from ws in SP.OptionalWhitespace (null)
+				 from attrs in Attribute (allowNewline).ZeroOrMore ()
+				 from ws in allowNewline ?
+					SP.OptionalWhitespace (null) :
+					OptionalSpace
 				 from sl in SP.Char ('/').OptionalVal ()
 				 from gt in SP.Char ('>')
-				 from endPos in EndPosInsideBlock
-				 select HtmlTag (startPos, endPos, HtmlTagType.OpenTag,
+				 select Tuple.Create (HtmlTagType.OpenTag,
 					"<" + name + attrs.AsString () + ws + (sl.HasValue ? "/>" : ">")))
 				.Trace ("OpenTag");
 
-			Parser<StringTree, char> ClosingTag (long startPos) =>
+			var ClosingTag =
 				(from lt in SP.Char ('/')
 				 from name in TagName
 				 from ws in SP.OptionalWhitespace (null)
 				 from gt in SP.Char ('>')
-				 from endPos in EndPosInsideBlock
-				 select HtmlTag (startPos, endPos, HtmlTagType.ClosingTag,
+				 select Tuple.Create (HtmlTagType.ClosingTag,
 					"</" + name + ws + gt))
 				.Trace ("ClosingTag");
 
-			Parser<StringTree, char> HtmlComment (long startPos) =>
+			var HtmlComment =
 				(from open in SP.String ("!--")
 				 from notend in SP.String (">").Or (SP.String ("->")).Not ()
 				 from text in SP.String ("--").Not ()
 					 .Then (SP.AnyChar)
 					 .ZeroOrMore ()
 				 from close in SP.String ("-->")
-				 from endPos in EndPosInsideBlock
-				 select HtmlTag (startPos, endPos, HtmlTagType.Comment,
+				 select Tuple.Create (HtmlTagType.Comment,
 					"<!--" + text.AsString () + close))
 				.Trace ("HtmlComment");
 
-			Parser<StringTree, char> ProcessingInstruction (long startPos) =>
+			var ProcessingInstruction =
 				(from open in SP.Char ('?')
 				 from text in SP.String ("?>").Not ()
 					 .Then (SP.AnyChar)
 					 .ZeroOrMore ()
 				 from close in SP.String ("?>")
-				 from endPos in EndPosInsideBlock
-				 select HtmlTag (startPos, endPos, HtmlTagType.ProcessingInstruction,
+				 select Tuple.Create (HtmlTagType.ProcessingInstruction,
 					"<?" + text.AsString () + close))
 				.Trace ("ProcessingInstruction");
 
-			Parser<StringTree, char> CDataSection (long startPos) =>
+			var CDataSection =
 				(from open in SP.String ("![CDATA[")
 				 from text in SP.String ("]]>").Not ()
 					 .Then (SP.AnyChar)
 					 .ZeroOrMore ()
 				 from close in SP.String ("]]>")
-				 from endPos in EndPosInsideBlock
-				 select HtmlTag (startPos, endPos, HtmlTagType.CDataSection,
+				 select Tuple.Create (HtmlTagType.CDataSection,
 					"<![CDATA[" + text.AsString () + close))
 				.Trace ("CDataSection");
 
-			Parser<StringTree, char> Declaration (long startPos) =>
+			var Declaration =
 				(from open in SP.Char ('!')
 				 from name in SP.Upper.OneOrMore ()
 				 from ws in SP.Whitespace (null)
@@ -1037,21 +1051,21 @@
 					 .Then (SP.AnyChar)
 					 .ZeroOrMore ()
 				 from close in SP.Char ('>')
-				 from endPos in EndPosInsideBlock
-				 select HtmlTag (startPos, endPos, HtmlTagType.Declaration,
+				 select Tuple.Create (HtmlTagType.Declaration,
 					"<!" + name.AsString () + ws + text.AsString () + close))
 				.Trace ("Declaration");
 
 			var AnyTag =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from lt in SP.Char ('<')
-				 from tag in OpenTag (startPos)
-					 .Or (ClosingTag (startPos))
-					 .Or (HtmlComment (startPos))
-					 .Or (ProcessingInstruction (startPos))
-					 .Or (CDataSection (startPos))
-					 .Or (Declaration (startPos))
-				 select tag)
+				 from tag in OpenTag (true)
+					 .Or (ClosingTag)
+					 .Or (HtmlComment)
+					 .Or (ProcessingInstruction)
+					 .Or (CDataSection)
+					 .Or (Declaration)
+				 from endPos in EndPosInsideBlock
+				 select HtmlTag (startPos, endPos, tag.Item1, tag.Item2))
 				.Trace ("AnyTag");
 
 			/*
@@ -1098,11 +1112,11 @@
 				.Trace ("AtxInline");
 
 			var AtxHeading =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from level in AtxStart
 				 from inlines in AtxInline.ZeroOrMore ()
 				 from atxend in AtxEnd
-				 from endPos in Parser.Position<char> ()
+				 from endPos in Position
 				 select Heading (startPos, endPos, level,
 					 inlines.IsEmpty () ? StringTree.Empty : 
 					 (inlines[0].IsLeaf () && inlines[0].LeafValue ().All (char.IsWhiteSpace) ? 
@@ -1112,7 +1126,7 @@
 			#### Setext Headings
 			*/
 			var SetextInline =
-				(from pos in Parser.Position<char> ()
+				(from pos in Position
 				 from st in Parser.GetState<ParseState, char> ()
 				 where !st.PastBlockStop (pos)
 				 from inline in Inline.Target
@@ -1127,7 +1141,7 @@
 
 			var IsSetextHeading =
 				(from lines in SetextLine.OneOrMore ()
-				 from endPos in Parser.Position<char> ()
+				 from endPos in Position
 				 from ul in SetextUnderline
 				 select endPos)
 				.Trace ("IsSetextHeading");
@@ -1135,7 +1149,7 @@
 			var SetextHeading =
 				(from endPos in IsSetextHeading.And ()
 				 from ni in NonindentSpace
-				 from startPos in Parser.Position<char> ()
+				 from startPos in Position
 				 from _ in Parser.ModifyState<ParseState, char> (
 					 st => st.SetBlockStop (endPos))
 				 from inlines in SetextInline.OneOrMore ()
@@ -1162,7 +1176,7 @@
 				.Trace ("InfoString");
 
 			var FencedCodeBlock =
-				(from startPos in Parser.Position<char> ()
+				(from startPos in Position
 				 from open in CodeFence ('`', 3)
 					 .Or (CodeFence ('~', 3))
 				 from info in InfoString
@@ -1173,7 +1187,7 @@
 				 from lines in closeFence.Not ()
 					 .Then (Line).ZeroOrMore ()
 				 from close in closeFence.OptionalRef ()
-				 from endPos in Parser.Position<char> ()
+				 from endPos in Position
 				 let trimmed = lines.Select (l =>
 					 TrimLeadingSpaces (l, indlen)).AsString ()
 				 select CodeBlock (startPos, endPos, trimmed, info))
@@ -1183,87 +1197,136 @@
 			*/
 			Parser<string, char> StartTag (Parser<string, char> tagName) =>
 				from tag in tagName
-				from ws in OptionalSpace
-				from gt in SP.Char ('>')
-				from nl in SP.NewLine
-				select tag + ws + gt + nl;
+				from end in SP.SpacesOrTabs
+					.Or (SP.String ('>'))
+					.Or (SP.NewLine)
+				select "<" + tag + end;
 
 			Parser<string, char> EndTag (Parser<string, char> tagName) =>
 				from lt in SP.Char ('<')
 				from sl in SP.Char ('/')
 				from tag in tagName
 				from gt in SP.Char ('>')
-				select lt + sl + tag + gt;
+				from rest in Line.Optional ("")
+				select "</" + tag + ">" + rest;
 
-			Parser<string, char> HtmlLine (Parser<string, char> endMarker) =>
-				(from ln in endMarker.Not ()
-					.Then (SP.NoneOf ('\r', '\n'))
-					.ZeroOrMore ()
-				 select ln.AsString ())
-				.Trace ("HTML block line");
+			Parser<string, char> StartMarker (string str) =>
+				from end in SP.String (str)
+				select "<" + end;
+
+			Parser<string, char> EndMarker (string str) =>
+				from end in SP.String (str)
+				from rest in Line.Optional ("")
+				select end + rest;
 
 			Parser<StringTree, char> HtmlBlock (Parser<string, char> start,
 				Parser<string, char> end) =>
 				from s in start
-				from lines in HtmlLine (end).ZeroOrMore ()
-				from e in end
-				from rest in Line
-				select StringTree.From (s, lines.ToStringTree (), e, rest);
+				let stop = end.Or (AtEnd (""))
+				from cont in stop.Not ()
+					.Then (SP.AnyChar).ZeroOrMore ()
+				from e in stop
+				select StringTree.From (s, cont.AsString (), e);
 
 			var Tag1 = SP.CaseInsensitiveString ("script")
 				.Or (SP.CaseInsensitiveString ("pre"))
 				.Or (SP.CaseInsensitiveString ("style"));
-
-			var HtmlBlock1 = HtmlBlock (StartTag (Tag1), EndTag (Tag1))
+			var Start1 = StartTag (Tag1);
+			var HtmlBlock1 = HtmlBlock (Start1, EndTag (Tag1))
 				.Trace ("HtmlBlock1 (<script>, <pre>, <style>)");
 
-			var HtmlBlock2 = HtmlBlock (SP.String ("!--"), SP.String ("-->"))
+			var Start2 = StartMarker ("!--");
+			var HtmlBlock2 = HtmlBlock (Start2, EndMarker ("-->"))
 				.Trace ("HtmlBlock2 (<!-- comment -->)");
 
-			var HtmlBlock3 = HtmlBlock (SP.String ("?"), SP.String ("?>"))
+			var Start3 = StartMarker ("?");
+			var HtmlBlock3 = HtmlBlock (Start3, EndMarker ("?>"))
 				.Trace ("HtmlBlock3 (<? processing instruction ?>)");
 
-			var HtmlBlock4 = HtmlBlock (SP.String ("![CDATA["), SP.String ("]]>"))
+			var Start4 = StartMarker ("![CDATA[");
+			var HtmlBlock4 = HtmlBlock (Start4, EndMarker ("]]>"))
 				.Trace ("HtmlBlock4 (<![CDATA[ cdata ]]>)");
 
-			var HtmlBlock5 = HtmlBlock (SP.String ("!"), SP.String (">"))
+			var Start5 = StartMarker ("!");
+			var HtmlBlock5 = HtmlBlock (Start5, EndMarker (">"))
 				.Trace ("HtmlBlock5 (<! declaration >)");
 
 			var Start6 =
 				from sl1 in SP.Char ('/').OptionalVal ()
 				from tag in SP.VariableName
 				where HtmlHelper.ValidTag (tag)
-				from ws in OptionalSpace
-				from end in SP.NewLine
+				from end in SP.NewLine.Select (nl => "").And ()
+					.Or (SP.SpacesOrTabs)
 					.Or (SP.String (">"))
 					.Or (SP.String ("/>"))
-				select sl1 + tag + ws + end;
+				select "<" + sl1 + tag + end;
+			var End67 =
+				(from nl in SP.NewLine
+				 from el in AtEnd ("").Or (SP.BlankLine (true))
+				 select nl)
+				.Trace ("End67");
+			var HtmlBlock6 = HtmlBlock (Start6, End67)
+				.Trace ("HtmlBlock6 (<[/]known tag...)");
 
-			//var End67 =
+			var Start7 =
+				from tag in OpenTag (false)
+					.Or (ClosingTag)
+				from ws in OptionalSpace
+				from nl in SP.NewLine.And ()
+				select tag.Item2 + ws;
+			var HtmlBlock7 = HtmlBlock (Start7, End67)
+				.Trace ("HtmlBlock7 (<open tag or closing tag>)");
 
+			IsHtmlBlock.Target =
+				(from ni in NonindentSpace
+				 from lt in SP.Char ('<')
+				 from html in Start1
+					 .Or (Start2)
+					 .Or (Start3)
+					 .Or (Start4)
+					 .Or (Start5)
+					 .Or (Start6)
+				 select true)
+				.Trace ("IsHtmlBlock");
+
+			var AnyHtmlBlock =
+				(from startPos in Position
+				 from ni in NonindentSpace
+				 from lt in SP.Char ('<')
+				 from html in HtmlBlock1
+					 .Or (HtmlBlock2)
+					 .Or (HtmlBlock3)
+					 .Or (HtmlBlock4)
+					 .Or (HtmlBlock5)
+					 .Or (HtmlBlock6)
+					 .Or (HtmlBlock7)
+				 from endPos in EndPosInsideBlock
+				 select this.HtmlBlock (startPos, endPos, ni + html))
+				.Trace ("AnyHtmlBlock");
 			/*
 			#### Paragraphs
 			*/
 			var Para =
 				(from ni in NonindentSpace
-				 from startPos in Parser.Position<char> ()
+				 from startPos in Position
 				 from inlines in Inlines
-				 from endPos in Parser.Position<char> ()
+				 from endPos in Position
 				 select Paragraph (startPos, endPos, inlines))
 				.Trace ("Para");
 
 			var AnyBlock =
 				(from blanks in SP.BlankLine ().ZeroOrMore ()
 				 from notend in NotAtEnd.And ()
-				 from startPos in Parser.Position<char> ()
+				 from startPos in Position
 				 from block in VerbatimBlock
 					 .Or (FencedCodeBlock)
 					 .Or (AtxHeading)
-					 .Or (SetextHeading)
 					 .Or (ThemaBreak)
+					 .Or (AnyHtmlBlock)
 					 .Or (LinkReferenceDefinition)
+					 .Or (SetextHeading)
 					 .Or (Para)
-				 from endPos in Parser.Position<char> ()
+				 from endPos in Position
 				 select Block (startPos, endPos, block))
 				.Trace ("AnyBlock");
 

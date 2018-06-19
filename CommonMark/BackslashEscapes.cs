@@ -63,7 +63,7 @@
 		[TestMethod]
 		public void Example298 () => TestParse (
 			"<a href=\"/bar\\/)\">", 
-			"<p><a href=\"/bar\\/)\"></p>");
+			"<a href=\"/bar\\/)\">");
 
 		/* [Example 299](http://spec.commonmark.org/0.28/#example-299) */
 		[TestMethod]

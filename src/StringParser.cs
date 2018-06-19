@@ -132,6 +132,9 @@
 			CollectionParsers.List<string, char> (str, (c1, c2) => c1 == c2)
 			.Expect (str);
 
+		public static Parser<string, char> String (char chr) =>
+			Char (chr).ToStringParser ();
+
 		public static Parser<string, char> CaseInsensitiveString (string str) =>
 			CollectionParsers.List<string, char> (str, 
 				(c1, c2) => char.ToLower (c1) == char.ToLower (c2))

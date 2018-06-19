@@ -54,6 +54,7 @@
     <Compile Include="EntityAndNumericCharReferences.cs" />
     <Compile Include="FencedCodeBlocks.cs" />
     <Compile Include="HardLineBreaks.cs" />
+    <Compile Include="HtmlBlocks.cs" />
     <Compile Include="Images.cs" />
     <Compile Include="IndentedCodeBlocks.cs" />
     <Compile Include="RawHtml.cs" />

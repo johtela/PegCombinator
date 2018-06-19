@@ -55,19 +55,22 @@
 			EntityMap.TryGetValue (entity, out string result) ? result : null;
 
 		public static bool ValidTag (string tagName) =>
-			TagSet.Contains (tagName);
+			TagSet.Contains (tagName.ToLower ());
 
+		#region Valid Tags
 		private static readonly HashSet<string> TagSet =
 			new HashSet<string> ()
 			{
-				"address", "article", "aside", "base", "basefont", "blockquote", "body", "caption",
-				"center", "col", "colgroup", "dd", "details", "dialog", "dir", "div", "dl", "dt",
-				"fieldset", "figcaption", "figure", "footer", "form", "frame", "frameset",
-				"h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hr", "html", "iframe",
-				"legend", "li", "link", "main", "menu", "menuitem", "meta", "nav", "noframes",
-				"ol", "optgroup", "option", "p", "param", "section", "source", "summary", "table",
-				"tbody", "td", "tfoot", "th", "thead", "title", "tr", "track", "ul"
+				"address", "article", "aside", "base", "basefont", "blockquote", "body",
+				"caption","center", "col", "colgroup", "dd", "details", "dialog", "dir",
+				"div", "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form",
+				"frame", "frameset", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header",
+				"hr", "html", "iframe",	"legend", "li", "link", "main", "menu", "menuitem",
+				"meta", "nav", "noframes", "ol", "optgroup", "option", "p", "param",
+				"section", "source", "summary", "table", "tbody", "td", "tfoot", "th",
+				"thead", "title", "tr", "track", "ul"
 			};
+		#endregion
 
 		#region [ EntityMap ]
 		/// <summary>
