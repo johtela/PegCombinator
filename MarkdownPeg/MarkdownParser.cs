@@ -629,20 +629,24 @@
 				(from head in LinkDestPart.Optional ("")
 				 from nested in LinkDestNested.Optional ("")
 				 from tail in LinkDestPart.Optional ("")
-				 select head + nested + tail)
+				 let res = head + nested + tail
+				 where res != ""
+				 select res)
 				.Trace ("LinkDestNormal");
 
 			var LinkDestination = 
 				LinkDestAngle.Or (LinkDestNormal).Trace ("LinkDestination");
 
+			var BlankTitleLine = SP.NewLine.Then (SP.BlankLine ());
+
 			Parser<Tuple<string, StringTree>, char> LTitle (char open, char close) =>
 				(from oq in SP.Char (open)
-				 from chs in SP.BlankLine ().Not ().Then (
+				 from chs in BlankTitleLine.Not ().Then (
 					 EscapedChar.ToStringParser ()
 					 .Or (EntityAsString)
 					 .Or (NumericCharAsString)
-					 .Or (SP.NoneOf (close).ToStringParser ())
-					 .ZeroOrMore ())
+					 .Or (SP.NoneOf (close).ToStringParser ()))
+					 .ZeroOrMore ()
 				 from cq in SP.Char (close)
 				 let title = chs.AsString ()
 				 select Tuple.Create (title, StringTree.From (open, title, close)))
@@ -656,7 +660,7 @@
 			Parser<StringTree, char> InlineLink (long startPos, StringTree text) =>
 				(from op in SP.Char ('(')
 				 from ws1 in SP.WhitespaceChar.ZeroOrMore ()
-				 from dest in LinkDestination.OptionalRef ()
+				 from dest in LinkDestination.Optional ("")
 				 from ws2 in SP.WhitespaceChar.ZeroOrMore ()
 				 from title in LinkTitle.OptionalRef ()
 				 from ws3 in SP.WhitespaceChar.ZeroOrMore ()
@@ -747,16 +751,23 @@
 				 select res)
 				.Trace ("AnyLink");
 
+			var LinkRefTitle =
+				(from ws1 in OptionalWsWithUpTo1NL
+				 from title in (LinkTitle)
+				 from ws2 in OptionalSpace
+				 from end in SP.NewLine.Or (AtEnd (""))
+				 select title)
+				.Trace ("LinkRefTitle");
+
 			var LinkReferenceDefinition =
 				(from ni in NonindentSpace
 				 from label in LinkLabel
 				 from col in SP.Char (':')
-				 from ws1 in OptionalWsWithUpTo1NL
+				 from ws in OptionalWsWithUpTo1NL
 				 from dest in LinkDestination
-				 from title in OptionalWsWithUpTo1NL
-					.Then (LinkTitle).OptionalRef ()
-				 from ws3 in OptionalSpace
-				 from end in SP.NewLine.Or (AtEnd (""))
+				 from title in LinkRefTitle
+					.Or (from bl in SP.BlankLine ()
+						 select (Tuple<string, StringTree>)null)
 				 from _ in Parser.ModifyState<ParseState, char> (st => 
 					st.AddLinkReference (label, dest, title?.Item1))
 				 select StringTree.Empty)
@@ -767,7 +778,7 @@
 			Parser<StringTree, char> InlineImage (long startPos, StringTree alt) =>
 				(from op in SP.Char ('(')
 				 from ws1 in SP.WhitespaceChar.ZeroOrMore ()
-				 from dest in LinkDestination.OptionalRef ()
+				 from dest in LinkDestination.Optional ("")
 				 from ws2 in SP.WhitespaceChar.ZeroOrMore ()
 				 from title in LinkTitle.OptionalRef ()
 				 from ws3 in SP.WhitespaceChar.ZeroOrMore ()
