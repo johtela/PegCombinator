@@ -224,6 +224,13 @@
 				SP.AnyChar.Not ().Select (_ => res);
 
 			var Position = Parser.Position<char> ();
+
+			var EndPosInsideBlock =
+				 (from endPos in Position
+				  from st in Parser.GetState<ParseState, char> ()
+				  where !st.PastBlockStop (endPos)
+				  select endPos)
+				 .Trace ("EndPosInsideBlock");
 			/*
 			### Whitespace
 			*/
@@ -264,6 +271,12 @@
 				 from cont in st.ContinueBlock (lazy)
 				 select cont)
 				.Trace ("ContinueBlock" + (lazy ? " (lazy)" : ""));
+
+			Parser<string, char> NewlineInBlock (bool lazy) =>
+				(from nl in SP.NewLine
+				 from cb in ContinueBlock (lazy)
+				 select nl)
+				.Trace ("NewLineInBlock" + (lazy ? " (lazy)" : ""));
 
 			var BlockQuoteMarker =
 				from ni in NonindentSpace
@@ -358,12 +371,6 @@
 				 select cs.Count ())
 				.Trace ("AtxStart");
 
-			var IsBlockQuote =
-				(from ni in NonindentSpace
-				 from gt in SP.Char ('>')
-				 select true)
-				.Trace ("IsBlockQuote");
-
 			var IsFencedCodeBlock =
 				(from ni in NonindentSpace
 				 from fence in CodeFence ('`', 3)
@@ -381,34 +388,28 @@
 				.Trace ("SetextUnderline");
 
 			var IsHtmlBlock = new Ref<Parser<bool, char>> ();
-
-			var IsNormalLine =
-				(from notend in NotAtEnd.And ()
-				 from notbl in SP.BlankLine ().Not ()
-				 from notgt in IsBlockQuote.Not ()
-				 from notatx in AtxStart.Not ()
-				 from notsetext in SetextUnderline.Not ()
-				 from notthmbrk in ThemaBreak.Not ()
-				 from notcodefence in IsFencedCodeBlock.Not ()
-				 from nothtmlblock in IsHtmlBlock.ForwardRef ().Not ()
-				 select true)
-				.Trace ("IsNormalLine");
-
-			var EndPosInsideBlock =
-				 (from endPos in Position
-				  from st in Parser.GetState<ParseState, char> ()
-				  where !st.PastBlockStop (endPos)
-				  select endPos)
-				 .Trace ("EndPosInsideBlock");
 			/*
 			### Inlines
 
 			#### Paragraph Line Breaks
 			*/
+			var IsParagraphLine =
+				(from notend in NotAtEnd.And ()
+				 from notbl in SP.BlankLine ().Not ()
+				 from notatx in AtxStart.Not ()
+				 from notsetext in ContinueBlock (false)
+					.Then (SetextUnderline)
+					.Not ()
+				 from notthmbrk in ThemaBreak.Not ()
+				 from notcodefence in IsFencedCodeBlock.Not ()
+				 from nothtmlblock in IsHtmlBlock.ForwardRef ().Not ()
+				 select true)
+				.Trace ("IsParagraphLine");
+
 			var EndLine =
 				(from sp in OptionalSpace
 				 from nl in SP.NewLine
-				 from next in IsNormalLine
+				 from next in IsParagraphLine
 				 from ws in OptionalSpace
 				 select StringTree.From (sp, nl, ws))
 				.Trace ("EndLine");
@@ -1196,7 +1197,8 @@
 				.Trace ("SetextInline");
 
 			var SetextLine =
-				(from normal in IsNormalLine
+				(from cont in ContinueBlock (false)
+				 from normal in IsParagraphLine
 				 from line in Line
 				 select line)
 				.Trace ("SetextLine");
@@ -1283,12 +1285,16 @@
 				from rest in Line.Optional ("")
 				select end + rest;
 
+			var HtmlChunk = SP.NoneOf ('\r', '\n').ToStringParser ()
+				.Or (NewlineInBlock (false))
+				.Trace ("HtmlChunk");
+
 			Parser<StringTree, char> HtmlBlock (Parser<string, char> start,
 				Parser<string, char> end) =>
 				from s in start
 				let stop = end.Or (AtEnd (""))
 				from cont in stop.Not ()
-					.Then (SP.AnyChar).ZeroOrMore ()
+					.Then (HtmlChunk).ZeroOrMore ()
 				from e in stop
 				select StringTree.From (s, cont.AsString (), e);
 
