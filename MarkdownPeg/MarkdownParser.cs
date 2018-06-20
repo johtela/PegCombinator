@@ -202,7 +202,7 @@
 		*/
 		private Parser<StringTree, char> Doc ()
 		{
-			Parser.Debugging = true;
+			Parser.Debugging = false;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -276,7 +276,7 @@
 				 from mk in BlockQuoteMarker
 				 from st in Parser.ModifyState<ParseState, char> (s =>
 					 s.BeginBlock (BlockQuoteMarker))
-				 from blocks in AnyBlock.Target.ZeroOrMore ()
+				 from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
 					 .CleanupState<List<StringTree>, ParseState, char> (s =>
 						 s.EndBlock ())
 				 from endPos in Position
@@ -1248,7 +1248,8 @@
 					.Then (SP.NewLine)
 				 from lines in ContinueBlock (false)
 					 .Then (closeFence.Not ())
-					 .Then (Line).ZeroOrMore ()
+					 .Then (Line)
+					 .ZeroOrMore ()
 				 from close in ContinueBlock (false).Then (closeFence).OptionalRef ()
 				 from endPos in Position
 				 let trimmed = lines.Select (l =>
