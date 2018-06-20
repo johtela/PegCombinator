@@ -36,12 +36,15 @@
 		protected virtual StringTree Block (long start, long end,
 			StringTree blockText) => blockText;
 
+		protected virtual StringTree BlockQuote (long start, long end,
+			StringTree blocks) => blocks;
+
 		protected virtual StringTree ThematicBreak (long start, long end,
 			StringTree text) => text;
 
 		protected virtual StringTree Heading (long start, long end,
 			int headingLevel, StringTree headingText) =>
-			"#".Times (headingLevel) + " " + headingText + Environment.NewLine;
+			"#".Times (headingLevel) + " " + headingText + _newline;
 
 		protected virtual StringTree Verbatim (long start, long end,
 			string verbatimText) => verbatimText;
@@ -139,8 +142,10 @@
 
 		private class ParseState
 		{
-			private Dictionary<string, LinkReference> _linkReferences =
+			private readonly Dictionary<string, LinkReference> _linkReferences =
 				new Dictionary<string, LinkReference> ();
+			private readonly List<Parser<string, char>> _blockStack = 
+				new List<Parser<string, char>> ();
 			private int _nestedImages;
 			private long _blockStop;
 
@@ -155,6 +160,24 @@
 			public LinkReference GetLinkReference (string label) =>
 				_linkReferences.TryGetValue (label, out var res) ?
 					res : null;
+
+			public void BeginBlock (Parser<string, char> blockMarker) => 
+				_blockStack.Add (blockMarker);
+
+			public void EndBlock () =>
+				_blockStack.RemoveAt (_blockStack.Count - 1);
+
+			public Parser<string, char> ContinueBlock (bool lazyContinuation)
+			{
+				Parser<string, char> Lazy (Parser<string, char> p) =>
+					lazyContinuation ? p.Optional ("") : p;
+
+				if (_blockStack.Count == 0)
+					return "".ToParser<string, char> ();
+				var first = Lazy (_blockStack[0]);
+				return _blockStack.Skip (1).Aggregate (first, 
+					(p1, p2) => p1.Then (Lazy (p2)));
+			}
 
 			public void StartImage () =>
 				_nestedImages++;
@@ -174,13 +197,12 @@
 			public bool PastBlockStop (long pos)
 				=> _blockStop != 0 && pos > _blockStop;
 		}
-
 		/*
 		## Parsing Rules
 		*/
 		private Parser<StringTree, char> Doc ()
 		{
-			Parser.Debugging = false;
+			Parser.Debugging = true;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -193,6 +215,13 @@
 				.Not ()
 				.Then (SP.AnyChar)
 				.Trace ("NormalChar");
+			/*
+			### Position Inside Text
+			*/
+			var NotAtEnd = SP.AnyChar.Trace ("NotAtEnd");
+
+			Parser<string, char> AtEnd (string res) =>
+				SP.AnyChar.Not ().Select (_ => res);
 
 			var Position = Parser.Position<char> ();
 			/*
@@ -212,7 +241,7 @@
 				 select ws1 + nl + ws2)
 				.Trace ("OptionalWsWithUpTo1NL");
 			/*
-			### Nonempty Lines
+			### Line Parsing
 			*/
 			var Line =
 				(from chs in SP.NoneOf ('\r', '\n').ZeroOrMore ()
@@ -225,6 +254,34 @@
 				 from ln in Line
 				 select ln)
 				.Trace ("NonblankLine");
+			/*
+			### Container Block Parsing
+			*/
+			var AnyBlock = new Ref<Parser<StringTree, char>> ();
+
+			Parser<string, char> ContinueBlock (bool lazy) =>
+				(from st in Parser.GetState<ParseState, char> ()
+				 from cont in st.ContinueBlock (lazy)
+				 select cont)
+				.Trace ("ContinueBlock" + (lazy ? " (lazy)" : ""));
+
+			var BlockQuoteMarker =
+				from ni in NonindentSpace
+				from gt in SP.Char ('>')
+				from sp in SP.Char (' ').OptionalVal ()
+				select ni + gt + sp;
+
+			var NestedBlockQuote =
+				(from startPos in Position
+				 from mk in BlockQuoteMarker
+				 from st in Parser.ModifyState<ParseState, char> (s =>
+					 s.BeginBlock (BlockQuoteMarker))
+				 from blocks in AnyBlock.Target.ZeroOrMore ()
+					 .CleanupState<List<StringTree>, ParseState, char> (s =>
+						 s.EndBlock ())
+				 from endPos in Position
+				 select BlockQuote (startPos, endPos, blocks.ToStringTree ()))
+				.Trace ("NestedBlockQuote");
 			/*
 			### Indented Code Blocks
 			*/
@@ -288,11 +345,6 @@
 			/*
 			### Block Selection Rules
 			*/
-			var NotAtEnd = SP.AnyChar.Trace ("NotAtEnd");
-
-			Parser<string, char> AtEnd (string res) =>
-				SP.AnyChar.Not ().Select (_ => res);
-
 			Parser<Tuple<string, string>, char> CodeFence (char ch, int minLen) =>
 				(from ni in NonindentSpace
 				 from ts in SP.Char (ch).Occurrences (minLen, int.MaxValue)
@@ -348,18 +400,17 @@
 				  where !st.PastBlockStop (endPos)
 				  select endPos)
 				 .Trace ("EndPosInsideBlock");
-
 			/*
 			### Inlines
 
-			#### Line Breaks
+			#### Paragraph Line Breaks
 			*/
 			var EndLine =
 				(from sp in OptionalSpace
 				 from nl in SP.NewLine
 				 from next in IsNormalLine
 				 from ws in OptionalSpace
-				 select (StringTree)sp + nl + ws)
+				 select StringTree.From (sp, nl, ws))
 				.Trace ("EndLine");
 
 			var SoftLB =
@@ -1195,9 +1246,10 @@
 				 let closeFence = CodeFence (open.Item2[0], open.Item2.Length)
 					.Then (OptionalSpace)
 					.Then (SP.NewLine)
-				 from lines in closeFence.Not ()
+				 from lines in ContinueBlock (false)
+					 .Then (closeFence.Not ())
 					 .Then (Line).ZeroOrMore ()
-				 from close in closeFence.OptionalRef ()
+				 from close in ContinueBlock (false).Then (closeFence).OptionalRef ()
 				 from endPos in Position
 				 let trimmed = lines.Select (l =>
 					 TrimLeadingSpaces (l, indlen)).AsString ()
@@ -1325,11 +1377,12 @@
 				 select Paragraph (startPos, endPos, inlines))
 				.Trace ("Para");
 
-			var AnyBlock =
+			AnyBlock.Target =
 				(from blanks in SP.BlankLine ().ZeroOrMore ()
 				 from notend in NotAtEnd.And ()
 				 from startPos in Position
-				 from block in VerbatimBlock
+				 from block in NestedBlockQuote
+					 .Or (VerbatimBlock)
 					 .Or (FencedCodeBlock)
 					 .Or (AtxHeading)
 					 .Or (ThemaBreak)
@@ -1343,7 +1396,7 @@
 
 			return
 				(from _ in Parser.SetState<ParseState, char> (() => new ParseState ())
-				 from blocks in AnyBlock.ZeroOrMore ()
+				 from blocks in AnyBlock.Target.ZeroOrMore ()
 				 select blocks.IsEmpty () ? StringTree.Empty : blocks.ToStringTree ())
 				.Trace ("Doc");
 		}

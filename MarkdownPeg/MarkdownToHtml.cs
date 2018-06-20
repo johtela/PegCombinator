@@ -10,6 +10,10 @@
 
 		public MarkdownToHtml () : this (Environment.NewLine) { }
 
+		protected override StringTree BlockQuote (long start, long end, 
+			StringTree blocks) => 
+			StringTree.From ("<blockquote>\n", blocks, "</blockquote>\n");
+
 		protected override StringTree ThematicBreak (long start, long end, 
 			StringTree text) =>
 			"<hr />" + _newline;
