@@ -33,9 +33,6 @@
 		/*
 		## Visitor Methods
 		*/
-		protected virtual StringTree Block (long start, long end,
-			StringTree blockText) => blockText;
-
 		protected virtual StringTree BlockQuote (long start, long end,
 			StringTree blocks) => blocks;
 
@@ -123,6 +120,14 @@
 				str.Remove (0, i);
 		}
 
+		private List<string> RemoveTrailingBlankLines (List<string> lines)
+		{
+			while (lines.Count > 0 &&
+				string.IsNullOrWhiteSpace (lines[lines.Count - 1]))
+				lines.RemoveAt (lines.Count - 1);
+			return lines;
+		}
+
 		/*
 		## Parsing State
 		*/
@@ -195,14 +200,14 @@
 				_blockStop = 0;
 
 			public bool PastBlockStop (long pos)
-				=> _blockStop != 0 && pos > _blockStop;
+				=> _blockStop != 0 && pos >= _blockStop;
 		}
 		/*
 		## Parsing Rules
 		*/
 		private Parser<StringTree, char> Doc ()
 		{
-			Parser.Debugging = false;
+			Parser.Debugging = true;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -220,7 +225,7 @@
 			*/
 			var NotAtEnd = SP.AnyChar.Trace ("NotAtEnd");
 
-			Parser<string, char> AtEnd (string res) =>
+			Parser<T, char> AtEnd<T> (T res) =>
 				SP.AnyChar.Not ().Select (_ => res);
 
 			var Position = Parser.Position<char> ();
@@ -298,40 +303,28 @@
 			/*
 			### Indented Code Blocks
 			*/
-			var Indent = 
-				NonindentSpace.Then(SP.String ("\t"))
-				.Or (SP.String ("    "))
-				.Trace ("Indent");
-
-			var IndentedLine =
-				(from ind in Indent
+			var VerbatimLine =
+				(from ind in SP.String ("    ")
+					.Or (NonindentSpace.Then (SP.String ("\t")))
 				 from line in Line
-				 select Tuple.Create (ind, line))
+				 select line)
 				.Trace ("IndentedLine");
 
-			var NonblankIndentedLine =
-				(from nb in SP.BlankLine ().Not ()
-				 from il in IndentedLine
-				 select il)
-				.Trace ("NonblankIndentedLine");
-
-			var VerbatimChunk =
-				(from bls in SP.BlankLine (true).ZeroOrMore ()
-				 from nbls in NonblankIndentedLine.OneOrMore ()
-				 let ind = nbls[0].Item1
-				 let text = nbls.Select (TupleExt.Second)
-				 select (bls.IsEmpty () ? text :
-					 bls.Select (b => 
-						b.StartsWith (ind) ? b.Remove (0, ind.Length) : _newline)
-					.Concat (text))
-					.AsString ())
-				.Trace ("VerbatimChunk");
+			var BlankVerbatimLine =
+				(from line in SP.BlankLine (true)
+				 select line.StartsWith ("    ") ?
+					 line.Remove (0, 4) : _newline)
+				.Trace ("BlankVerbatimLine");
 
 			var VerbatimBlock =
 				(from startPos in Position
-				 from chunks in VerbatimChunk.OneOrMore ()
+				 from lines in BlankVerbatimLine
+					.Or (VerbatimLine)
+					.SeparatedBy1 (ContinueBlock (false))
 				 from endPos in Position
-				 select Verbatim (startPos, endPos, chunks.AsString ()))
+				 let trimmed = RemoveTrailingBlankLines (lines).SkipWhile (string.IsNullOrWhiteSpace)
+				 where trimmed.Any ()
+				 select Verbatim (startPos, endPos, trimmed.AsString ()))
 				.Trace ("VerbatimBlock");
 			/*
 			### Thematic Breaks
@@ -378,28 +371,16 @@
 				 select true)
 				.Trace ("IsFencedCodeBlock");
 
-			var SetextUnderline =
-				(from ni in NonindentSpace
-				 from ul in SP.Char ('=').OneOrMore ()
-					.Or (SP.Char ('-').OneOrMore ())
-				 from ws in OptionalSpace
-				 from nl in SP.NewLine
-				 select ni + ul.AsString () + ws + nl)
-				.Trace ("SetextUnderline");
-
 			var IsHtmlBlock = new Ref<Parser<bool, char>> ();
 			/*
 			### Inlines
 
 			#### Paragraph Line Breaks
 			*/
-			var IsParagraphLine =
+			var ContinueParagraph =
 				(from notend in NotAtEnd.And ()
 				 from notbl in SP.BlankLine ().Not ()
 				 from notatx in AtxStart.Not ()
-				 from notsetext in ContinueBlock (false)
-					.Then (SetextUnderline)
-					.Not ()
 				 from notthmbrk in ThemaBreak.Not ()
 				 from notcodefence in IsFencedCodeBlock.Not ()
 				 from nothtmlblock in IsHtmlBlock.ForwardRef ().Not ()
@@ -409,7 +390,8 @@
 			var EndLine =
 				(from sp in OptionalSpace
 				 from nl in SP.NewLine
-				 from next in IsParagraphLine
+				 from cont in ContinueBlock (true)
+				 from next in ContinueParagraph
 				 from ws in OptionalSpace
 				 select StringTree.From (sp, nl, ws))
 				.Trace ("EndLine");
@@ -1188,27 +1170,40 @@
 			/*
 			#### Setext Headings
 			*/
-			var SetextInline =
-				(from pos in Position
-				 from st in Parser.GetState<ParseState, char> ()
-				 where !st.PastBlockStop (pos)
-				 from inline in Inline.Target
-				 select inline)
-				.Trace ("SetextInline");
+			var SetextUnderline =
+				(from ni in NonindentSpace
+				 from ul in SP.Char ('=').OneOrMore ()
+					.Or (SP.Char ('-').OneOrMore ())
+				 from ws in OptionalSpace
+				 from nl in SP.NewLine
+				 select ni + ul.AsString () + ws + nl)
+				.Trace ("SetextUnderline");
 
 			var SetextLine =
-				(from cont in ContinueBlock (false)
-				 from normal in IsParagraphLine
+				(from notend in NotAtEnd.And ()
+				 from notbl in SP.BlankLine ().Not ()
+				 from notatx in AtxStart.Not ()
+				 from notsetext in SetextUnderline.Not ()
+				 from notthmbrk in ThemaBreak.Not ()
+				 from notcodefence in IsFencedCodeBlock.Not ()
+				 from nothtmlblock in IsHtmlBlock.ForwardRef ().Not ()
 				 from line in Line
-				 select line)
+				 from endPos in Position
+				 from cont in ContinueBlock (false)
+				 select endPos)
 				.Trace ("SetextLine");
 
 			var IsSetextHeading =
 				(from lines in SetextLine.OneOrMore ()
-				 from endPos in Position
 				 from ul in SetextUnderline
-				 select endPos)
+				 select lines[lines.Count - 1])
 				.Trace ("IsSetextHeading");
+
+			var SetextInline =
+				(from inline in Inline.Target
+				 from endPos in EndPosInsideBlock
+				 select inline)
+				.Trace ("SetextInline");
 
 			var SetextHeading =
 				(from endPos in IsSetextHeading.And ()
@@ -1221,6 +1216,7 @@
 						 st => st.ClearBlockStop ())
 				 from sp in OptionalSpace
 				 from nl in SP.NewLine
+				 from cont in ContinueBlock (false)
 				 from ul in SetextUnderline
 				 select Heading (startPos, endPos, ul.Contains ("=") ? 1 : 2,
 					 inlines.ToStringTree ()))
@@ -1384,11 +1380,17 @@
 				 select Paragraph (startPos, endPos, inlines))
 				.Trace ("Para");
 
+			var BlankLines =
+				(from blanks in SP.BlankLine ()
+					.SeparatedBy1 (ContinueBlock (false))
+				 select StringTree.Empty)
+				.Trace ("BlankLines");
+
 			AnyBlock.Target =
-				(from blanks in SP.BlankLine ().ZeroOrMore ()
-				 from notend in NotAtEnd.And ()
+				(from notend in NotAtEnd.And ()
 				 from startPos in Position
-				 from block in NestedBlockQuote
+				 from block in BlankLines
+					 .Or (NestedBlockQuote)
 					 .Or (VerbatimBlock)
 					 .Or (FencedCodeBlock)
 					 .Or (AtxHeading)
@@ -1398,7 +1400,7 @@
 					 .Or (SetextHeading)
 					 .Or (Para)
 				 from endPos in Position
-				 select Block (startPos, endPos, block))
+				 select block)
 				.Trace ("AnyBlock");
 
 			return

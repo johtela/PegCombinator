@@ -50,6 +50,7 @@
   <ItemGroup>
     <Compile Include="Autolinks.cs" />
     <Compile Include="BackslashEscapes.cs" />
+    <Compile Include="BlockQuotes.cs" />
     <Compile Include="CodeSpans.cs" />
     <Compile Include="EntityAndNumericCharReferences.cs" />
     <Compile Include="FencedCodeBlocks.cs" />
