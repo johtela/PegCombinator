@@ -181,7 +181,8 @@
 					return "".ToParser<string, char> ();
 				var first = Lazy (_blockStack[0]);
 				return _blockStack.Skip (1).Aggregate (first, 
-					(p1, p2) => p1.Then (Lazy (p2)));
+					(p1, p2) => p1.Then (Lazy (p2)))
+					.Trace ("ContinueBlock" + (lazyContinuation ? " (lazy)" : ""));
 			}
 
 			public void StartImage () =>
@@ -207,7 +208,7 @@
 		*/
 		private Parser<StringTree, char> Doc ()
 		{
-			Parser.Debugging = true;
+			Parser.Debugging = false;
 			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
@@ -272,10 +273,9 @@
 			var AnyBlock = new Ref<Parser<StringTree, char>> ();
 
 			Parser<string, char> ContinueBlock (bool lazy) =>
-				(from st in Parser.GetState<ParseState, char> ()
-				 from cont in st.ContinueBlock (lazy)
-				 select cont)
-				.Trace ("ContinueBlock" + (lazy ? " (lazy)" : ""));
+				from st in Parser.GetState<ParseState, char> ()
+				from cont in st.ContinueBlock (lazy)
+				select cont;
 
 			Parser<string, char> NewlineInBlock (bool lazy) =>
 				(from nl in SP.NewLine
@@ -1377,6 +1377,7 @@
 				 from startPos in Position
 				 from inlines in Inlines
 				 from endPos in Position
+				 from bl in SP.BlankLine ().OptionalRef ()
 				 select Paragraph (startPos, endPos, inlines))
 				.Trace ("Para");
 
