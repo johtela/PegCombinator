@@ -98,5 +98,71 @@
 		public void Example204 () => TestParse (
 			">\n> foo\n>  ", 
 			"<blockquote>\n<p>foo</p>\n</blockquote>");
+
+		/* [Example 205](http://spec.commonmark.org/0.28/#example-205) */
+		[TestMethod]
+		public void Example205 () => TestParse (
+			"> foo\n\n> bar", 
+			"<blockquote>\n<p>foo</p>\n</blockquote>\n<blockquote>\n<p>bar</p>\n</blockquote>");
+
+		/* [Example 206](http://spec.commonmark.org/0.28/#example-206) */
+		[TestMethod]
+		public void Example206 () => TestParse (
+			"> foo\n> bar", 
+			"<blockquote>\n<p>foo\nbar</p>\n</blockquote>");
+
+		/* [Example 207](http://spec.commonmark.org/0.28/#example-207) */
+		[TestMethod]
+		public void Example207 () => TestParse (
+			"> foo\n>\n> bar", 
+			"<blockquote>\n<p>foo</p>\n<p>bar</p>\n</blockquote>");
+
+		/* [Example 208](http://spec.commonmark.org/0.28/#example-208) */
+		[TestMethod]
+		public void Example208 () => TestParse (
+			"foo\n> bar", 
+			"<p>foo</p>\n<blockquote>\n<p>bar</p>\n</blockquote>");
+
+		/* [Example 209](http://spec.commonmark.org/0.28/#example-209) */
+		[TestMethod]
+		public void Example209 () => TestParse (
+			"> aaa\n***\n> bbb", 
+			"<blockquote>\n<p>aaa</p>\n</blockquote>\n<hr />\n<blockquote>\n<p>bbb</p>\n</blockquote>");
+
+		/* [Example 210](http://spec.commonmark.org/0.28/#example-210) */
+		[TestMethod]
+		public void Example210 () => TestParse (
+			"> bar\nbaz", 
+			"<blockquote>\n<p>bar\nbaz</p>\n</blockquote>");
+
+		/* [Example 211](http://spec.commonmark.org/0.28/#example-211) */
+		[TestMethod]
+		public void Example211 () => TestParse (
+			"> bar\n\nbaz", 
+			"<blockquote>\n<p>bar</p>\n</blockquote>\n<p>baz</p>");
+
+		/* [Example 212](http://spec.commonmark.org/0.28/#example-212) */
+		[TestMethod]
+		public void Example212 () => TestParse (
+			"> bar\n>\nbaz", 
+			"<blockquote>\n<p>bar</p>\n</blockquote>\n<p>baz</p>");
+
+		/* [Example 213](http://spec.commonmark.org/0.28/#example-213) */
+		[TestMethod]
+		public void Example213 () => TestParse (
+			"> > > foo\nbar", 
+			"<blockquote>\n<blockquote>\n<blockquote>\n<p>foo\nbar</p>\n</blockquote>\n</blockquote>\n</blockquote>");
+
+		/* [Example 214](http://spec.commonmark.org/0.28/#example-214) */
+		[TestMethod]
+		public void Example214 () => TestParse (
+			">>> foo\n> bar\n>>baz", 
+			"<blockquote>\n<blockquote>\n<blockquote>\n<p>foo\nbar\nbaz</p>\n</blockquote>\n</blockquote>\n</blockquote>");
+
+		/* [Example 215](http://spec.commonmark.org/0.28/#example-215) */
+		[TestMethod]
+		public void Example215 () => TestParse (
+			">     code\n\n>    not code", 
+			"<blockquote>\n<pre><code>code\n</code></pre>\n</blockquote>\n<blockquote>\n<p>not code</p>\n</blockquote>");
 	}
 }

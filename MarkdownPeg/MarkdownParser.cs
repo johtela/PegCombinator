@@ -382,6 +382,7 @@
 				 from notbl in SP.BlankLine ().Not ()
 				 from notatx in AtxStart.Not ()
 				 from notthmbrk in ThemaBreak.Not ()
+				 from notbq in BlockQuoteMarker.Not ()
 				 from notcodefence in IsFencedCodeBlock.Not ()
 				 from nothtmlblock in IsHtmlBlock.ForwardRef ().Not ()
 				 select true)
@@ -1185,6 +1186,7 @@
 				 from notatx in AtxStart.Not ()
 				 from notsetext in SetextUnderline.Not ()
 				 from notthmbrk in ThemaBreak.Not ()
+				 from notbq in BlockQuoteMarker.Not ()
 				 from notcodefence in IsFencedCodeBlock.Not ()
 				 from nothtmlblock in IsHtmlBlock.ForwardRef ().Not ()
 				 from line in Line
