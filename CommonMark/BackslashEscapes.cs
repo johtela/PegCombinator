@@ -5,6 +5,12 @@
 	[TestClass]
 	public class BackslashEscapes : TestBase
 	{
+		/* [Example 288](http://spec.commonmark.org/0.28/#example-288) */
+		[TestMethod]
+		public void Example288 () => TestParse (
+			"`hi`lo`", 
+			"<p><code>hi</code>lo`</p>");
+
 		/* [Example 289](http://spec.commonmark.org/0.28/#example-289) */
 		[TestMethod]
 		public void Example289 () => TestParse (
