@@ -36,6 +36,9 @@
 		protected virtual StringTree BlockQuote (long start, long end,
 			StringTree blocks) => blocks;
 
+		protected virtual StringTree ListItem (long start, long end,
+			StringTree blocks) => blocks;
+
 		protected virtual StringTree ThematicBreak (long start, long end,
 			StringTree text) => text;
 
@@ -145,12 +148,23 @@
 			}
 		}
 
+		private class BlockMarker
+		{
+			public readonly Parser<string, char> Parser;
+			public readonly bool CanBeLazy;
+
+			public BlockMarker (Parser<string, char> parser, bool canBeLazy)
+			{
+				Parser = parser;
+				CanBeLazy = canBeLazy;
+			}
+		}
+
 		private class ParseState
 		{
 			private readonly Dictionary<string, LinkReference> _linkReferences =
 				new Dictionary<string, LinkReference> ();
-			private readonly List<Parser<string, char>> _blockStack = 
-				new List<Parser<string, char>> ();
+			private readonly List<BlockMarker> _blockStack = new List<BlockMarker> ();
 			private int _nestedImages;
 			private long _blockStop;
 
@@ -166,16 +180,18 @@
 				_linkReferences.TryGetValue (label, out var res) ?
 					res : null;
 
-			public void BeginBlock (Parser<string, char> blockMarker) => 
-				_blockStack.Add (blockMarker);
+			public void BeginBlock (Parser<string, char> parser, bool canBeLazy) => 
+				_blockStack.Add (new BlockMarker (parser, canBeLazy));
 
 			public void EndBlock () =>
 				_blockStack.RemoveAt (_blockStack.Count - 1);
 
 			public Parser<string, char> ContinueBlock (bool lazyContinuation)
 			{
-				Parser<string, char> Lazy (Parser<string, char> p) =>
-					lazyContinuation ? p.Optional ("") : p;
+				Parser<string, char> Lazy (BlockMarker bm) =>
+					lazyContinuation && bm.CanBeLazy ? 
+						bm.Parser.Optional ("") : 
+						bm.Parser;
 
 				if (_blockStack.Count == 0)
 					return "".ToParser<string, char> ();
@@ -268,7 +284,29 @@
 				 select ln)
 				.Trace ("NonblankLine");
 			/*
-			### Container Block Parsing
+			### Thematic Breaks
+			*/
+			Parser<string, char> TB (char c) =>
+				from ch in SP.Char (c)
+				from rest in (
+					from si in OptionalSpace
+					from ci in SP.Char (c)
+					select si + ci)
+					.Occurrences (2, int.MaxValue)
+				select rest.ToString (new string (ch, 1), "", "");
+
+			var ThemaBreak =
+				(from ni in NonindentSpace
+				 from startPos in Position
+				 from rule in TB ('*').Or (TB ('-')).Or (TB ('_'))
+				 from endPos in Position
+				 from sp in OptionalSpace
+				 from nl in SP.NewLine
+				 select ThematicBreak (startPos, endPos,
+					(StringTree)rule + sp + nl))
+				.Trace ("ThemaBreak");
+			/*
+			### Container Blocks
 			*/
 			var AnyBlock = new Ref<Parser<StringTree, char>> ();
 
@@ -282,24 +320,82 @@
 				 from cb in ContinueBlock (lazy)
 				 select nl)
 				.Trace ("NewLineInBlock" + (lazy ? " (lazy)" : ""));
-
+			/*
+			#### Block Quotes
+			*/
 			var BlockQuoteMarker =
 				from ni in NonindentSpace
 				from gt in SP.Char ('>')
 				from sp in SP.Char (' ').OptionalVal ()
 				select ni + gt + sp;
 
-			var NestedBlockQuote =
+			var BlockQuoteStart =
 				(from startPos in Position
 				 from mk in BlockQuoteMarker
 				 from st in Parser.ModifyState<ParseState, char> (s =>
-					 s.BeginBlock (BlockQuoteMarker))
+					 s.BeginBlock (BlockQuoteMarker, true))
 				 from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
 					 .CleanupState<List<StringTree>, ParseState, char> (s =>
 						 s.EndBlock ())
 				 from endPos in Position
 				 select BlockQuote (startPos, endPos, blocks.ToStringTree ()))
 				.Trace ("NestedBlockQuote");
+			/*
+			#### List Items
+			*/
+			var BulletListMarker = SP.OneOf ('-', '+', '*').ToStringParser ();
+
+			var OrderedListMarker =
+				from num in SP.Number.Occurrences (1, 9)
+				from dot in SP.OneOf ('.', ')')
+				select num.AsString ();
+
+			var ListMarker =
+				from ni in NonindentSpace
+				from mark in BulletListMarker
+					.Or (OrderedListMarker)
+				from sp in SP.Char (' ').Occurrences (1, 4)
+				select ni + mark + sp.AsString ();
+
+			Parser<string, char> ListIndent (int length)
+			{
+				var cnt = 0;
+				return SP.BlankLine ().And ()
+					.Or (Parser.Satisfy<char> (ch =>
+					{
+						switch (ch)
+						{
+							case ' ':
+								cnt++;
+								break;
+							case '\t':
+								cnt += 4;
+								break;
+							default:
+								cnt = 0;
+								return false;
+						}
+						var res = cnt <= length;
+						if (!res)
+							cnt = 0;
+						return res;
+					})
+					.OneOrMore ().ToStringParser ())
+					.Trace (string.Format ("ListIndent ({0})", length));
+			}
+
+			var ListItemStart =
+				(from notTB in TB ('*').Or (TB ('-')).Not ()
+				 from startPos in Position
+				 from mk in ListMarker
+				 from st in Parser.ModifyState<ParseState, char> (s =>
+					 s.BeginBlock (ListIndent (mk.Length), false))
+				 from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
+					 .CleanupState<List<StringTree>, ParseState, char> (s =>
+						 s.EndBlock ())
+				 from endPos in Position
+				 select ListItem (startPos, endPos, blocks.ToStringTree ()))
+				.Trace ("ListItemStart");
 			/*
 			### Indented Code Blocks
 			*/
@@ -326,28 +422,6 @@
 				 where trimmed.Any ()
 				 select Verbatim (startPos, endPos, trimmed.AsString ()))
 				.Trace ("VerbatimBlock");
-			/*
-			### Thematic Breaks
-			*/
-			Parser<string, char> TB (char c) =>
-				from ch in SP.Char (c)
-				from rest in (
-					from si in OptionalSpace
-					from ci in SP.Char (c)
-					select si + new string (ci, 1))
-					.Occurrences (2, int.MaxValue)
-				select  rest.ToString (new string (ch, 1), "", "");
-
-			var ThemaBreak =
-				(from ni in NonindentSpace
-				 from startPos in Position
-				 from rule in TB ('*').Or (TB ('-')).Or (TB ('_'))
-				 from endPos in Position
-				 from sp in OptionalSpace
-				 from nl in SP.NewLine
-				 select ThematicBreak (startPos, endPos, 
-					(StringTree)rule + sp + nl))
-				.Trace ("ThemaBreak");
 			/*
 			### Block Selection Rules
 			*/
@@ -495,7 +569,7 @@
 			*/
 			var SpaceBetweenWords =
 				(from startPos in Position
-				 from sp in SP.SpacesOrTabs
+				 from sp in SP.WhitespaceNotNL
 				 from notnl in SP.NewLine.Not ()
 				 from endPos in Position
 				 select Space (startPos, endPos, sp))
@@ -1393,7 +1467,8 @@
 				(from notend in NotAtEnd.And ()
 				 from startPos in Position
 				 from block in BlankLines
-					 .Or (NestedBlockQuote)
+					 .Or (ListItemStart)
+					 .Or (BlockQuoteStart)
 					 .Or (VerbatimBlock)
 					 .Or (FencedCodeBlock)
 					 .Or (AtxHeading)

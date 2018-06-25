@@ -89,6 +89,10 @@
 			Parser.Satisfy<char> (c => c < 0x80 && char.IsWhiteSpace (c))
 			.Expect ("ASCII whitespace character");
 
+		public static readonly Parser<char, char> WhitespaceCharNotNL =
+			Parser.Satisfy<char> (c => char.IsWhiteSpace (c) && !c.In ('\r', '\n'))
+			.Expect ("Whitespace character but not newline");
+
 		/// <summary>
 		/// Parse a word (sequence of consecutive letters)
 		/// </summary>
@@ -186,6 +190,10 @@
 			from cr in Char ('\r').OptionalVal ()
 			from lf in Char ('\n')
 			select cr.HasValue ? "\r\n" : "\n";
+
+		public static readonly Parser<string, char> WhitespaceNotNL =
+			from s in WhitespaceCharNotNL.OneOrMore ()
+			select s.AsString ();
 
 		public static Parser<string, char> Line (bool keepLinefeed = false) =>
 			from s in NoneOf ('\r', '\n').ZeroOrMore ()

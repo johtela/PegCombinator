@@ -14,6 +14,10 @@
 			StringTree blocks) => 
 			StringTree.From ("<blockquote>\n", blocks, "</blockquote>\n");
 
+		protected override StringTree ListItem (long start, long end, 
+			StringTree blocks) => 
+			StringTree.From ("<li>", blocks, "</li>");
+
 		protected override StringTree ThematicBreak (long start, long end, 
 			StringTree text) =>
 			"<hr />" + _newline;

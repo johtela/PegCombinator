@@ -26,8 +26,8 @@
 		/* [Example 334](http://spec.commonmark.org/0.28/#example-334) */
 		[TestMethod]
 		public void Example334 () => TestParse (
-			"* a *",
-			"<p>* a *</p>");
+			"*\u00A0a\u00A0*",
+			"<p>*\u00A0a\u00A0*</p>");
 
 		/* [Example 335](http://spec.commonmark.org/0.28/#example-335) */
 		[TestMethod]
