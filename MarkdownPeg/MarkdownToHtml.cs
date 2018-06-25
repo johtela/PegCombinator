@@ -16,7 +16,20 @@
 
 		protected override StringTree ListItem (long start, long end, 
 			StringTree blocks) => 
-			StringTree.From ("<li>", blocks, "</li>");
+			StringTree.From ("<li>\n", blocks, "</li>\n");
+
+		protected override StringTree BulletList (long start, long end,
+			StringTree listItems) => 
+			StringTree.From ("<ul>\n", listItems, "</ul>\n");
+
+		protected override StringTree OrderedList (long start, long end, 
+			string firstNumber, StringTree listItems)
+		{
+			var num = int.Parse (firstNumber);
+			return StringTree.From (
+				num == 1 ? "<ol>\n" : string.Format ("<ol start=\"{0}\">\n", num), 
+				listItems, "</ol>\n");
+		}
 
 		protected override StringTree ThematicBreak (long start, long end, 
 			StringTree text) =>

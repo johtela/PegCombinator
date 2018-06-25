@@ -39,6 +39,12 @@
 		protected virtual StringTree ListItem (long start, long end,
 			StringTree blocks) => blocks;
 
+		protected virtual StringTree BulletList (long start, long end,
+			StringTree listItems) => listItems;
+
+		protected virtual StringTree OrderedList (long start, long end,
+			string firstNumber, StringTree listItems) => listItems;
+
 		protected virtual StringTree ThematicBreak (long start, long end,
 			StringTree text) => text;
 
@@ -148,23 +154,12 @@
 			}
 		}
 
-		private class BlockMarker
-		{
-			public readonly Parser<string, char> Parser;
-			public readonly bool CanBeLazy;
-
-			public BlockMarker (Parser<string, char> parser, bool canBeLazy)
-			{
-				Parser = parser;
-				CanBeLazy = canBeLazy;
-			}
-		}
-
 		private class ParseState
 		{
 			private readonly Dictionary<string, LinkReference> _linkReferences =
 				new Dictionary<string, LinkReference> ();
-			private readonly List<BlockMarker> _blockStack = new List<BlockMarker> ();
+			private readonly List<Parser<string, char>> _blockStack = 
+				new List<Parser<string, char>> ();
 			private int _nestedImages;
 			private long _blockStop;
 
@@ -180,18 +175,16 @@
 				_linkReferences.TryGetValue (label, out var res) ?
 					res : null;
 
-			public void BeginBlock (Parser<string, char> parser, bool canBeLazy) => 
-				_blockStack.Add (new BlockMarker (parser, canBeLazy));
+			public void BeginBlock (Parser<string, char> parser) => 
+				_blockStack.Add (parser);
 
 			public void EndBlock () =>
 				_blockStack.RemoveAt (_blockStack.Count - 1);
 
 			public Parser<string, char> ContinueBlock (bool lazyContinuation)
 			{
-				Parser<string, char> Lazy (BlockMarker bm) =>
-					lazyContinuation && bm.CanBeLazy ? 
-						bm.Parser.Optional ("") : 
-						bm.Parser;
+				Parser<string, char> Lazy (Parser<string, char> p) =>
+					lazyContinuation ? p.Optional ("") : p;
 
 				if (_blockStack.Count == 0)
 					return "".ToParser<string, char> ();
@@ -218,6 +211,28 @@
 
 			public bool PastBlockStop (long pos)
 				=> _blockStop != 0 && pos >= _blockStop;
+		}
+
+		private class ListMarkerInfo
+		{
+			public Parser<string, char> MarkerParser;
+			public Parser<string, char> IndentParser;
+			public string FirstNumber;
+
+			public ListMarkerInfo (Parser<string, char> markerParser,
+				Parser<string, char> indentParser, string firstNumber = null)
+			{
+				MarkerParser = markerParser;
+				IndentParser = indentParser;
+				FirstNumber = firstNumber;
+			}
+
+			public ListMarkerInfo ChangeIndentParser (
+				Parser<string, char> indentParser)
+			{
+				IndentParser = indentParser;
+				return this;
+			}
 		}
 		/*
 		## Parsing Rules
@@ -333,7 +348,7 @@
 				(from startPos in Position
 				 from mk in BlockQuoteMarker
 				 from st in Parser.ModifyState<ParseState, char> (s =>
-					 s.BeginBlock (BlockQuoteMarker, true))
+					 s.BeginBlock (BlockQuoteMarker))
 				 from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
 					 .CleanupState<List<StringTree>, ParseState, char> (s =>
 						 s.EndBlock ())
@@ -343,20 +358,6 @@
 			/*
 			#### List Items
 			*/
-			var BulletListMarker = SP.OneOf ('-', '+', '*').ToStringParser ();
-
-			var OrderedListMarker =
-				from num in SP.Number.Occurrences (1, 9)
-				from dot in SP.OneOf ('.', ')')
-				select num.AsString ();
-
-			var ListMarker =
-				from ni in NonindentSpace
-				from mark in BulletListMarker
-					.Or (OrderedListMarker)
-				from sp in SP.Char (' ').Occurrences (1, 4)
-				select ni + mark + sp.AsString ();
-
 			Parser<string, char> ListIndent (int length)
 			{
 				var cnt = 0;
@@ -384,18 +385,88 @@
 					.Trace (string.Format ("ListIndent ({0})", length));
 			}
 
-			var ListItemStart =
-				(from notTB in TB ('*').Or (TB ('-')).Not ()
-				 from startPos in Position
-				 from mk in ListMarker
+			var BulletListMarker =
+				(from ch in SP.OneOf ('-', '+', '*')
+				 select Tuple.Create (SP.Char (ch).ToStringParser (), ""))
+				.Trace ("BulletListMarker");
+
+			var OrderedListNumber = SP.Number.Occurrences (1, 9);
+
+			var OrderedListMarker =
+				(from num in OrderedListNumber
+				 from dot in SP.OneOf ('.', ')')
+				 select Tuple.Create (
+					 from n in OrderedListNumber
+					 from d in SP.Char (dot)
+					 select n.AsString () + d,
+					 num.AsString ()))
+				.Trace ("OrderedListMarker");
+
+			var IndentAmount =
+				(SP.BlankLine ().And ().Select (_ => 1)
+				.Or (from sp in SP.Char (' ')
+					 from sps in SP.Char (' ').ZeroOrMore ().And ()
+					 let cnt = sps.Count
+					 select cnt < 4 ? cnt + 1 : 1))
+				.Trace ("IndentAmount");
+
+			var FirstListMarker =
+				(from ni in NonindentSpace
+				 from notTB in TB ('*').Or (TB ('-')).Not ()
+				 from mark in BulletListMarker
+					 .Or (OrderedListMarker)
+				 from ind in IndentAmount
+				 select new ListMarkerInfo (mark.Item1,
+					 ListIndent (ni.Length + mark.Item2.Length + 1 + ind),
+					 mark.Item2))
+				.Trace ("FirstListMarker");
+
+			var FirstListItem =
+				(from startPos in Position
+				 from lmi in FirstListMarker
 				 from st in Parser.ModifyState<ParseState, char> (s =>
-					 s.BeginBlock (ListIndent (mk.Length), false))
+					 s.BeginBlock (lmi.IndentParser))
+				 from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
+					 .CleanupState<List<StringTree>, ParseState, char> (s =>
+						 s.EndBlock ())
+				 from endPos in Position
+				 select Tuple.Create (
+					 ListItem (startPos, endPos, blocks.ToStringTree ()), lmi))
+				.Trace ("FirstListItem");
+
+			Parser<ListMarkerInfo, char> NextListMarker (ListMarkerInfo lmi) =>
+				(from ni in NonindentSpace
+				 from notTB in TB ('*').Or (TB ('-')).Not ()
+				 from mark in lmi.MarkerParser
+				 from ind in IndentAmount
+				 select lmi.ChangeIndentParser (
+					 ListIndent (ni.Length + mark.Length + ind)))
+				.Trace ("NextListMarker");
+
+			Parser<StringTree, char> NextListItem (ListMarkerInfo lmi) =>
+				(from startPos in Position
+				 from nlmi in NextListMarker (lmi)
+				 from st in Parser.ModifyState<ParseState, char> (s =>
+					 s.BeginBlock (nlmi.IndentParser))
 				 from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
 					 .CleanupState<List<StringTree>, ParseState, char> (s =>
 						 s.EndBlock ())
 				 from endPos in Position
 				 select ListItem (startPos, endPos, blocks.ToStringTree ()))
-				.Trace ("ListItemStart");
+				.Trace ("NextListItem");
+			/*
+			#### Lists
+			*/
+			var List =
+				 from startPos in Position
+				 from first in FirstListItem
+				 let lmi = first.Item2
+				 from rest in NextListItem (lmi).ZeroOrMore ()
+				 from endPos in Position
+				 let items = rest.AddToFront (first.Item1).ToStringTree ()
+				 select string.IsNullOrEmpty (lmi.FirstNumber) ?
+					BulletList (startPos, endPos, items) :
+					OrderedList (startPos, endPos, lmi.FirstNumber, items);
 			/*
 			### Indented Code Blocks
 			*/
@@ -1467,7 +1538,7 @@
 				(from notend in NotAtEnd.And ()
 				 from startPos in Position
 				 from block in BlankLines
-					 .Or (ListItemStart)
+					 .Or (List)
 					 .Or (BlockQuoteStart)
 					 .Or (VerbatimBlock)
 					 .Or (FencedCodeBlock)
