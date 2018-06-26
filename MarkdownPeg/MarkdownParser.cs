@@ -64,6 +64,9 @@
 		protected virtual StringTree Paragraph (long start, long end,
 			StringTree text) => text;
 
+		protected virtual StringTree BlankLines (long start, long end,
+			StringTree lines) => lines;
+
 		protected virtual StringTree Text (long start, long end, 
 			StringTree text) => text;
 
@@ -154,12 +157,86 @@
 			}
 		}
 
+		private enum ContainerBlockType { BlockQuote, ListItem }
+
+		private class ContainerBlock
+		{
+			public readonly ContainerBlockType Type;
+			public readonly int Indent;
+
+			public ContainerBlock (ContainerBlockType type, int indent)
+			{
+				Type = type;
+				Indent = indent;
+			}
+
+			private Parser<string, char> ListIndent (int length)
+			{
+				var cnt = 0;
+				return SP.BlankLine ().And ()
+					.Or (from sp in Parser.Satisfy<char> (
+							ch =>
+							{
+								switch (ch)
+								{
+									case ' ':
+										cnt++;
+										break;
+									case '\t':
+										cnt += 4;
+										break;
+									default:
+										cnt = 0;
+										return false;
+								}
+								var res = cnt <= length;
+								if (!res)
+									cnt = 0;
+								return res;
+							})
+							.Select (c => c == '\t' ? "    " : " ")
+							.OneOrMore ()
+						 let res = sp.AsString ()
+						 where res.Length == length
+						 select res)
+					.Trace (string.Format ("ListIndent ({0})", length));
+			}
+
+			private Parser<string, char> ListItemParser =>
+				ListIndent (Indent);
+
+			public Parser<string, char> PrefixParser =>
+				Type == ContainerBlockType.BlockQuote ?
+					BlockQuoteMarker : 
+					ListItemParser;
+
+			public ContainerBlock Combine (ContainerBlock other)
+			{
+				return new ContainerBlock (Type, Indent + other.Indent);
+			}
+
+			public static IEnumerable<ContainerBlock> Reduce (
+				List<ContainerBlock> blocks)
+			{
+				var i = 0;
+				while (i < blocks.Count)
+				{
+					var curr = blocks[i++];
+					if (curr.Type == ContainerBlockType.ListItem)
+						while (i < blocks.Count &&
+							blocks[i].Type == ContainerBlockType.ListItem)
+							curr = curr.Combine (blocks[i++]);
+					yield return curr;
+				}
+			}
+		}
+
 		private class ParseState
 		{
 			private readonly Dictionary<string, LinkReference> _linkReferences =
 				new Dictionary<string, LinkReference> ();
-			private readonly List<Parser<string, char>> _blockStack = 
-				new List<Parser<string, char>> ();
+			private readonly List<ContainerBlock> _blockStack = 
+				new List<ContainerBlock> ();
 			private int _nestedImages;
 			private long _blockStop;
 
@@ -175,8 +252,8 @@
 				_linkReferences.TryGetValue (label, out var res) ?
 					res : null;
 
-			public void BeginBlock (Parser<string, char> parser) => 
-				_blockStack.Add (parser);
+			public void BeginBlock (ContainerBlockType type, int indent = 0) => 
+				_blockStack.Add (new ContainerBlock (type, indent));
 
 			public void EndBlock () =>
 				_blockStack.RemoveAt (_blockStack.Count - 1);
@@ -186,11 +263,12 @@
 				Parser<string, char> Lazy (Parser<string, char> p) =>
 					lazyContinuation ? p.Optional ("") : p;
 
-				if (_blockStack.Count == 0)
+				var blocks = ContainerBlock.Reduce (_blockStack).ToList ();
+				if (blocks.Count == 0)
 					return "".ToParser<string, char> ();
-				var first = Lazy (_blockStack[0]);
-				return _blockStack.Skip (1).Aggregate (first, 
-					(p1, p2) => p1.Then (Lazy (p2)))
+				var first = Lazy (blocks[0].PrefixParser);
+				return blocks.Skip (1).Aggregate (first, 
+					(p, b) => p.Then (Lazy (b.PrefixParser)))
 					.Trace ("ContinueBlock" + (lazyContinuation ? " (lazy)" : ""));
 			}
 
@@ -216,30 +294,45 @@
 		private class ListMarkerInfo
 		{
 			public Parser<string, char> MarkerParser;
-			public Parser<string, char> IndentParser;
+			public int Indent;
 			public string FirstNumber;
 
 			public ListMarkerInfo (Parser<string, char> markerParser,
-				Parser<string, char> indentParser, string firstNumber = null)
+				int indent, string firstNumber = null)
 			{
 				MarkerParser = markerParser;
-				IndentParser = indentParser;
+				Indent = indent;
 				FirstNumber = firstNumber;
 			}
 
-			public ListMarkerInfo ChangeIndentParser (
-				Parser<string, char> indentParser)
+			public ListMarkerInfo ChangeIndent (int indent)
 			{
-				IndentParser = indentParser;
+				Indent = indent;
 				return this;
 			}
 		}
-
 		private readonly object _linkTag = new object ();
 
 		/*
-		## Parsing Rules
+		## General-purpose Parsers
 		*/
+		private static readonly Parser<string, char> OptionalSpace = 
+			SP.SpacesOrTabs.Optional ("").Trace ("OptionalSpace");
+
+		private static readonly Parser<string, char> NonindentSpace =
+			(from sp in SP.Char (' ').Occurrences (0, 3)
+			 select sp.AsString ())
+			.Trace ("NonindentSpace");
+
+		private static readonly Parser<string, char> BlockQuoteMarker =
+			from ni in NonindentSpace
+			from gt in SP.Char ('>')
+			from sp in SP.Char (' ').OptionalVal ()
+			select ni + gt + sp;
+
+		/*
+			## Parsing Rules
+			*/
 		private Parser<StringTree, char> Doc ()
 		{
 			Parser.Debugging = false;
@@ -274,13 +367,6 @@
 			/*
 			### Whitespace
 			*/
-			var OptionalSpace = SP.SpacesOrTabs.Optional ("").Trace ("OptionalSpace");
-
-			var NonindentSpace =
-				(from sp in SP.Char (' ').Occurrences (0, 3)
-				 select sp.AsString ())
-				.Trace ("NonindentSpace");
-
 			var OptionalWsWithUpTo1NL =
 				(from ws1 in OptionalSpace
 				 from nl in SP.NewLine.Optional ("")
@@ -341,17 +427,11 @@
 			/*
 			#### Block Quotes
 			*/
-			var BlockQuoteMarker =
-				from ni in NonindentSpace
-				from gt in SP.Char ('>')
-				from sp in SP.Char (' ').OptionalVal ()
-				select ni + gt + sp;
-
 			var BlockQuoteStart =
 				(from startPos in Position
 				 from mk in BlockQuoteMarker
 				 from st in Parser.ModifyState<ParseState, char> (s =>
-					 s.BeginBlock (BlockQuoteMarker))
+					 s.BeginBlock (ContainerBlockType.BlockQuote))
 				 from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
 					 .CleanupState<List<StringTree>, ParseState, char> (s =>
 						 s.EndBlock ())
@@ -361,34 +441,6 @@
 			/*
 			#### List Items
 			*/
-			Parser<string, char> ListIndent (int length)
-			{
-				var cnt = 0;
-				return SP.BlankLine ().And ()
-					.Or (Parser.Satisfy<char> (ch =>
-					{
-						if (cnt >= length)
-						{
-							cnt = cnt - length;
-							return false;
-						}
-						switch (ch)
-						{
-							case ' ':
-								cnt++;
-								return true;
-							case '\t':
-								cnt += 4;
-								return true;
-							default:
-								cnt = 0;
-								return false;
-						}
-					})
-					.OneOrMore ().ToStringParser ())
-					.Trace (string.Format ("ListIndent ({0})", length));
-			}
-
 			var ListBullet = SP.OneOf ('-', '+', '*');
 
 			var BulletListMarker =
@@ -423,7 +475,7 @@
 					 .Or (OrderedListMarker)
 				 from ind in IndentAmount
 				 select new ListMarkerInfo (mark.Item1,
-					 ListIndent (ni.Length + mark.Item2.Length + 1 + ind),
+					 ni.Length + mark.Item2.Length + 1 + ind,
 					 mark.Item2))
 				.Trace ("FirstListMarker");
 
@@ -431,7 +483,7 @@
 				(from startPos in Position
 				 from lmi in FirstListMarker
 				 from st in Parser.ModifyState<ParseState, char> (s =>
-					 s.BeginBlock (lmi.IndentParser))
+					 s.BeginBlock (ContainerBlockType.ListItem, lmi.Indent))
 				 from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
 					 .CleanupState<List<StringTree>, ParseState, char> (s =>
 						 s.EndBlock ())
@@ -445,8 +497,7 @@
 				 from notTB in TB ('*').Or (TB ('-')).Not ()
 				 from mark in lmi.MarkerParser
 				 from ind in IndentAmount
-				 select lmi.ChangeIndentParser (
-					 ListIndent (ni.Length + mark.Length + ind)))
+				 select lmi.ChangeIndent (ni.Length + mark.Length + ind))
 				.Trace ("NextListMarker");
 
 			Parser<StringTree, char> NextListItem (ListMarkerInfo lmi) =>
@@ -454,7 +505,7 @@
 				 from startPos in Position
 				 from nlmi in NextListMarker (lmi)
 				 from st in Parser.ModifyState<ParseState, char> (s =>
-					 s.BeginBlock (nlmi.IndentParser))
+					 s.BeginBlock (ContainerBlockType.ListItem, nlmi.Indent))
 				 from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
 					 .CleanupState<List<StringTree>, ParseState, char> (s =>
 						 s.EndBlock ())
@@ -1544,16 +1595,18 @@
 				 select Paragraph (startPos, endPos, inlines))
 				.Trace ("Para");
 
-			var BlankLines =
-				(from blanks in SP.BlankLine ()
+			var Blanks =
+				(from startPos in Position
+				 from blanks in SP.BlankLine ()
 					.SeparatedBy1 (ContinueBlock (false))
-				 select StringTree.Empty)
+				 from endPos in Position
+				 select BlankLines (startPos, endPos, blanks.AsString ()))
 				.Trace ("BlankLines");
 
 			AnyBlock.Target =
 				(from notend in NotAtEnd.And ()
 				 from startPos in Position
-				 from block in BlankLines
+				 from block in Blanks
 					 .Or (List)
 					 .Or (BlockQuoteStart)
 					 .Or (VerbatimBlock)

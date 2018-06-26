@@ -10,6 +10,7 @@
 		{
 			public static readonly object Emphasis = new object ();
 			public static readonly object Paragraph = new object ();
+			public static readonly object BlankLines = new object ();
 		}
 
 		public MarkdownToHtml (string newline) : base (newline) { }
@@ -20,12 +21,29 @@
 			StringTree blocks) => 
 			StringTree.From ("<blockquote>", _newline, blocks, "</blockquote>", _newline);
 
+		private bool IsParagraph (StringTree st) =>
+			st.TagValue == Tags.Paragraph;
+
+		private StringTree ParagraphContents (StringTree st) =>
+			st.TagTarget.ListValues.Skip (1).First ();
+
 		protected override StringTree ListItem (long start, long end,
-			StringTree blocks) => 
-			blocks.TagValue == Tags.Paragraph ?
-				StringTree.From ("<li>",
-					blocks.TagTarget.ListValues.Skip (1).First (), "</li>", _newline) :
-				StringTree.From ("<li>", _newline, blocks, "</li>", _newline);
+			StringTree blocks)
+		{
+			if (IsParagraph (blocks))
+				return StringTree.From ("<li>", ParagraphContents (blocks), 
+					"</li>", _newline);
+			if (blocks.IsList)
+			{
+				var first = blocks.ListValues.First ();
+				if (IsParagraph (first) && !blocks.HasTag (Tags.BlankLines))
+					return StringTree.From ("<li>",
+						ParagraphContents (first), _newline,
+						blocks.ListValues.Skip (1).ToStringTree (),
+						"</li>", _newline);
+			}
+			return StringTree.From ("<li>", _newline, blocks, "</li>", _newline);
+		}
 
 		protected override StringTree BulletList (long start, long end,
 			StringTree listItems) => 
@@ -69,6 +87,9 @@
 
 		protected override StringTree Paragraph (long start, long end, StringTree text) =>
 			StringTree.From ("<p>", text, "</p>", _newline).Tag (Tags.Paragraph);
+
+		protected override StringTree BlankLines (long start, long end, StringTree lines) => 
+			StringTree.Empty.Tag (Tags.BlankLines);
 
 		protected override StringTree SoftLineBreak (long start, long end, StringTree text) =>
 			_newline;
