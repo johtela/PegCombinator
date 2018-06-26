@@ -8,7 +8,7 @@
 	public abstract class StringTree
 	{
 		protected abstract void Output (StringBuilder sb);
-		public abstract bool HasTag (string tag);
+		public abstract bool HasTag (object tag);
 
 		internal class Leaf : StringTree
 		{
@@ -22,7 +22,7 @@
 				sb.Append (Value);
 			}
 
-			public override bool HasTag (string tag) => false;
+			public override bool HasTag (object tag) => false;
 		}
 
 		internal class ListNode : StringTree
@@ -40,26 +40,26 @@
 					value.Output (sb);
 			}
 
-			public override bool HasTag (string tag) => 
+			public override bool HasTag (object tag) => 
 				Values.Any (v => v.HasTag (tag));
 		}
 
 		internal class TagNode : StringTree
 		{
-			public readonly string Tag;
-			public readonly StringTree Value;
+			public readonly StringTree Target;
+			public readonly object Tag;
 
-			public TagNode (string tag, StringTree value)
+			public TagNode (StringTree target, object tag)
 			{
+				Target = target;
 				Tag = tag;
-				Value = value;
 			}
 
 			protected override void Output (StringBuilder sb) => 
-				Value.Output (sb);
+				Target.Output (sb);
 
-			public override bool HasTag (string tag) => 
-				Tag == tag || Value.HasTag (tag);
+			public override bool HasTag (object tag) => 
+				Tag == tag || Target.HasTag (tag);
 		}
 
 		internal class LazyNode : StringTree
@@ -84,24 +84,27 @@
 				Value.Output (sb);
 			}
 
-			public override bool HasTag (string tag)
+			public override bool HasTag (object tag)
 			{
 				ForceValue ();
 				return Value.HasTag (tag);
 			}
 		}
 
-		public bool IsLeaf () =>
-			this is Leaf;
+		public bool IsLeaf => this is Leaf;
 
-		public string LeafValue () =>
-			IsLeaf () ? (this as Leaf).Value : null;
+		public string LeafValue => (this as Leaf)?.Value;
 
-		public bool IsList () =>
-			this is ListNode;
+		public bool IsList => this is ListNode;
 
-		public IEnumerable<StringTree> ListValues () =>
-			IsList () ? (this as ListNode).Values : null;
+		public IEnumerable<StringTree> ListValues =>
+			(this as ListNode)?.Values;
+
+		public bool IsTag => this is TagNode;
+
+		public object TagValue => (this as TagNode)?.Tag;
+
+		public StringTree TagTarget => (this as TagNode)?.Target;
 
 		public override string ToString ()
 		{
@@ -133,13 +136,20 @@
 
 	public static class StringTreeHelpers
 	{
-		public static StringTree ToStringTree (this IEnumerable<StringTree> values) =>
-			new StringTree.ListNode (values);
+		public static StringTree ToStringTree (this IEnumerable<StringTree> values)
+		{
+			switch (values.Count ())
+			{
+				case 0: return StringTree.Empty;
+				case 1: return values.First ();
+				default: return new StringTree.ListNode (values);
+			}
+		}
 
 		public static StringTree ToStringTree (this IEnumerable<string> values) =>
-			new StringTree.ListNode (values.Select (v => new StringTree.Leaf (v)));
+			ToStringTree (values.Select (v => new StringTree.Leaf (v)));
 
-		public static StringTree Tag (this StringTree value, string tag) =>
-			new StringTree.TagNode (tag, value);
+		public static StringTree Tag (this StringTree target, object tag) =>
+			new StringTree.TagNode (target, tag);
 	}
 }

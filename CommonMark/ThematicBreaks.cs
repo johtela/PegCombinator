@@ -101,19 +101,19 @@
 			"Foo\n***\nbar\n",
 			"<p>Foo</p>\n<hr />\n<p>bar</p>");
 
-		/* [Example 29](http://spec.commonmark.org/0.29/#example-29) */
+		/* [Example 29](http://spec.commonmark.org/0.28/#example-29) */
 		[TestMethod]
 		public void Example29 () => TestParse (
 			"Foo\n---\nbar",
 			"<h2>Foo</h2>\n<p>bar</p>");
 
-		/* [Example 30](http://spec.commonmark.org/0.30/#example-30) */
+		/* [Example 30](http://spec.commonmark.org/0.28/#example-30) */
 		[TestMethod]
 		public void Example30 () => TestParse (
-			"* Foo\n* * *\n* Bar",
-			"<ul><li>Foo</li>\n</ul>\n<hr />\n<ul>\n<li>Bar</li>\n</ul>");
+			"* Foo\n* * *\n* Bar", 
+			"<ul>\n<li>Foo</li>\n</ul>\n<hr />\n<ul>\n<li>Bar</li>\n</ul>");
 
-		/* [Example 31](http://spec.commonmark.org/0.31/#example-31) */
+		/* [Example 31](http://spec.commonmark.org/0.28/#example-31) */
 		[TestMethod]
 		public void Example31 () => TestParse (
 			"- Foo\n- * * *",

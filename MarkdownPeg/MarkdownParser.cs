@@ -234,6 +234,9 @@
 				return this;
 			}
 		}
+
+		private readonly object _linkTag = new object ();
+
 		/*
 		## Parsing Rules
 		*/
@@ -364,29 +367,32 @@
 				return SP.BlankLine ().And ()
 					.Or (Parser.Satisfy<char> (ch =>
 					{
+						if (cnt >= length)
+						{
+							cnt = cnt - length;
+							return false;
+						}
 						switch (ch)
 						{
 							case ' ':
 								cnt++;
-								break;
+								return true;
 							case '\t':
 								cnt += 4;
-								break;
+								return true;
 							default:
 								cnt = 0;
 								return false;
 						}
-						var res = cnt <= length;
-						if (!res)
-							cnt = 0;
-						return res;
 					})
 					.OneOrMore ().ToStringParser ())
 					.Trace (string.Format ("ListIndent ({0})", length));
 			}
 
+			var ListBullet = SP.OneOf ('-', '+', '*');
+
 			var BulletListMarker =
-				(from ch in SP.OneOf ('-', '+', '*')
+				(from ch in ListBullet
 				 select Tuple.Create (SP.Char (ch).ToStringParser (), ""))
 				.Trace ("BulletListMarker");
 
@@ -444,7 +450,8 @@
 				.Trace ("NextListMarker");
 
 			Parser<StringTree, char> NextListItem (ListMarkerInfo lmi) =>
-				(from startPos in Position
+				(from cont in ContinueBlock (false)
+				 from startPos in Position
 				 from nlmi in NextListMarker (lmi)
 				 from st in Parser.ModifyState<ParseState, char> (s =>
 					 s.BeginBlock (nlmi.IndentParser))
@@ -516,6 +523,14 @@
 				 select true)
 				.Trace ("IsFencedCodeBlock");
 
+			var IsListItem =
+				(from ni in NonindentSpace
+				 from ch in ListBullet.ToStringParser ()
+					.Or (SP.String ("1."))
+				 from sp in SP.Char (' ')
+				 select true)
+				.Trace ("IsListItem");
+
 			var IsHtmlBlock = new Ref<Parser<bool, char>> ();
 			/*
 			### Inlines
@@ -528,6 +543,7 @@
 				 from notatx in AtxStart.Not ()
 				 from notthmbrk in ThemaBreak.Not ()
 				 from notbq in BlockQuoteMarker.Not ()
+				 from notli in IsListItem.Not ()
 				 from notcodefence in IsFencedCodeBlock.Not ()
 				 from nothtmlblock in IsHtmlBlock.ForwardRef ().Not ()
 				 select true)
@@ -849,13 +865,13 @@
 				 from st in Parser.GetState<ParseState, char> ()
 				 select st.InsideImage ?
 						text :
-					text.HasTag ("link") ?
+					text.HasTag (_linkTag) ?
 						StringTree.From ('[', text, ']', '(', 
 							ws1.AsString (), dest, ws2.AsString (),
 							title == null ? "" : title.Item2, ws3.AsString (), ')') :
 					Link (startPos, endPos, text,
 						HtmlHelper.DecodeUri (dest), title?.Item1)
-						.Tag ("link"))
+						.Tag (_linkTag))
 				.Trace ("InlineLink");
 			/*
 			##### Full Reference Links
@@ -884,7 +900,7 @@
 				 select StringTree.Lazy (() =>
 				 {
 					 var linkRef = st.GetLinkReference (label);
-					 if (text.HasTag ("link") || linkRef == null)
+					 if (text.HasTag (_linkTag) || linkRef == null)
 					 {
 						 var esclab = EscapeBackslashes (label);
 						 return StringTree.From ("[", text, "]",
@@ -897,7 +913,7 @@
 					 return Link (startPos, endPos, text,
 						 HtmlHelper.DecodeUri (linkRef.Destination),
 						 linkRef.Title)
-						 .Tag ("link");
+						 .Tag (_linkTag);
 				 }))
 				.Trace ("FullReferenceLink");
 
@@ -1310,7 +1326,7 @@
 				 from endPos in Position
 				 select Heading (startPos, endPos, level,
 					 inlines.IsEmpty () ? StringTree.Empty : 
-					 (inlines[0].IsLeaf () && inlines[0].LeafValue ().All (char.IsWhiteSpace) ? 
+					 (inlines[0].IsLeaf && inlines[0].LeafValue .All (char.IsWhiteSpace) ? 
 						inlines.Skip (1) : inlines).ToStringTree ()))
 				.Trace ("AtxHeading");
 			/*
@@ -1438,7 +1454,7 @@
 				let stop = end.Or (AtEnd (""))
 				from cont in stop.Not ()
 					.Then (HtmlChunk).ZeroOrMore ()
-				from e in stop
+				from e in stop.Optional (_newline)
 				select StringTree.From (s, cont.AsString (), e);
 
 			var Tag1 = SP.CaseInsensitiveString ("script")

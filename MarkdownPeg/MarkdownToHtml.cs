@@ -6,29 +6,38 @@
 
 	public class MarkdownToHtml : MarkdownParser
 	{
+		private static class Tags
+		{
+			public static readonly object Emphasis = new object ();
+			public static readonly object Paragraph = new object ();
+		}
+
 		public MarkdownToHtml (string newline) : base (newline) { }
 
 		public MarkdownToHtml () : this (Environment.NewLine) { }
 
 		protected override StringTree BlockQuote (long start, long end, 
 			StringTree blocks) => 
-			StringTree.From ("<blockquote>\n", blocks, "</blockquote>\n");
+			StringTree.From ("<blockquote>", _newline, blocks, "</blockquote>", _newline);
 
-		protected override StringTree ListItem (long start, long end, 
+		protected override StringTree ListItem (long start, long end,
 			StringTree blocks) => 
-			StringTree.From ("<li>\n", blocks, "</li>\n");
+			blocks.TagValue == Tags.Paragraph ?
+				StringTree.From ("<li>",
+					blocks.TagTarget.ListValues.Skip (1).First (), "</li>", _newline) :
+				StringTree.From ("<li>", _newline, blocks, "</li>", _newline);
 
 		protected override StringTree BulletList (long start, long end,
 			StringTree listItems) => 
-			StringTree.From ("<ul>\n", listItems, "</ul>\n");
+			StringTree.From ("<ul>", _newline, listItems, "</ul>", _newline);
 
 		protected override StringTree OrderedList (long start, long end, 
 			string firstNumber, StringTree listItems)
 		{
 			var num = int.Parse (firstNumber);
 			return StringTree.From (
-				num == 1 ? "<ol>\n" : string.Format ("<ol start=\"{0}\">\n", num), 
-				listItems, "</ol>\n");
+				num == 1 ? "<ol>" : string.Format ("<ol start=\"{0}\">", num), 
+				_newline, listItems, "</ol>", _newline);
 		}
 
 		protected override StringTree ThematicBreak (long start, long end, 
@@ -59,7 +68,7 @@
 				"</code></pre>", _newline);
 
 		protected override StringTree Paragraph (long start, long end, StringTree text) =>
-			StringTree.From ("<p>", text, "</p>", _newline);
+			StringTree.From ("<p>", text, "</p>", _newline).Tag (Tags.Paragraph);
 
 		protected override StringTree SoftLineBreak (long start, long end, StringTree text) =>
 			_newline;
@@ -71,23 +80,16 @@
 			HtmlHelper.BasicEncode (punctuation);
 
 		protected override StringTree Emphasis (long start, long end, StringTree text) =>
-			StringTree.From ("<em>", text, "</em>");
+			StringTree.From ("<em>", text, "</em>").Tag (Tags.Emphasis);
 
 		protected override StringTree StrongEmphasis (long start, long end,
 			StringTree text)
 		{
-			if (text.IsList () && text.ListValues ().Count () == 1)
+			if (text.TagValue == Tags.Emphasis)
 			{
-				var list = text.ListValues ().First ().ListValues ();
-				if (list != null)
-				{
-					var first = list.FirstOrDefault ();
-					if (first != null && first.LeafValue () == "<em>")
-						return StringTree.From (
-							"<em>",
-							StringTree.From ("<strong>", list.Skip (1).First (), "</strong>"),
-							"</em>");
-				}
+				var list = text.TagTarget.ListValues;
+				return Emphasis (start, end, 
+					StringTree.From ("<strong>", list.Skip (1).First (), "</strong>"));
 			}
 			return StringTree.From ("<strong>", text, "</strong>");
 		}

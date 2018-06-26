@@ -161,7 +161,7 @@
 		private class Terminator<S> : IParserInput<S>
 		{
 			private IParserInput<S> _input;
-			private S _terminator;
+			private readonly S _terminator;
 			private long _endPos;
 
 			public Terminator (IParserInput<S> input, S terminator)
