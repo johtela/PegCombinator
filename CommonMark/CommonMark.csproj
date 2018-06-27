@@ -59,6 +59,7 @@
     <Compile Include="Images.cs" />
     <Compile Include="IndentedCodeBlocks.cs" />
     <Compile Include="LinkReferenceDefinitions.cs" />
+    <Compile Include="ListItems.cs" />
     <Compile Include="ParagraphsAndBlankLines.cs" />
     <Compile Include="RawHtml.cs" />
     <Compile Include="SetextHeadings.cs" />

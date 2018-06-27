@@ -1,6 +1,7 @@
 ﻿namespace MarkdownPeg
 {
 	using System;
+	using System.Collections.Generic;
 	using System.Linq;
 	using PegCombinator;
 
@@ -8,9 +9,9 @@
 	{
 		private static class Tags
 		{
-			public static readonly object Emphasis = new object ();
-			public static readonly object Paragraph = new object ();
-			public static readonly object BlankLines = new object ();
+			public static readonly object Emphasis = "Emphasis";
+			public static readonly object Paragraph = "Paragraph";
+			public static readonly object BlankLines = "BlankLines";
 		}
 
 		public MarkdownToHtml (string newline) : base (newline) { }
@@ -27,27 +28,54 @@
 		private StringTree ParagraphContents (StringTree st) =>
 			st.TagTarget.ListValues.Skip (1).First ();
 
-		protected override StringTree ListItem (long start, long end,
-			StringTree blocks)
+		private bool IsLooseListItem (StringTree listItem, bool isLast)
 		{
-			if (IsParagraph (blocks))
-				return StringTree.From ("<li>", ParagraphContents (blocks), 
-					"</li>", _newline);
-			if (blocks.IsList)
-			{
-				var first = blocks.ListValues.First ();
-				if (IsParagraph (first) && !blocks.HasTag (Tags.BlankLines))
-					return StringTree.From ("<li>",
-						ParagraphContents (first), _newline,
-						blocks.ListValues.Skip (1).ToStringTree (),
-						"</li>", _newline);
-			}
-			return StringTree.From ("<li>", _newline, blocks, "</li>", _newline);
+			if (IsParagraph (listItem))
+				return false;
+			var blank = listItem.FindTag (Tags.BlankLines);
+			return blank != null && 
+				(!isLast || blank != listItem.ListValues.Last ());
 		}
+
+		private StringTree FormatTightListItem (StringTree listItem)
+		{
+			StringTree tightPar (StringTree par) =>
+				StringTree.From ("<li>", ParagraphContents (par), "</li>", _newline);
+
+			if (IsParagraph (listItem))
+				return tightPar (listItem);
+			var list = listItem.ListValues;
+			var cnt = list.Count ();
+			var first = list.First ();
+			if (IsParagraph (first))
+			{
+				if (cnt == 1 || (cnt == 2 && list.Skip (1).First ().HasTag (Tags.BlankLines)))
+					return tightPar (first);
+				return StringTree.From ("<li>", ParagraphContents (first), _newline,
+					list.Skip (1).ToStringTree (), "</li>", _newline);
+			}
+			return StringTree.From ("<li>", _newline, listItem, "</li>", _newline);
+		}
+
+		private StringTree FormatLooseListItem (StringTree listItem) =>
+			StringTree.From ("<li>", _newline, listItem, "</li>", _newline);
+
+		private bool IsLooseList (IEnumerable<StringTree> items)
+		{
+			var last = items.Last ();
+			return items.Any (i => IsLooseListItem (i, i == last));
+		}
+
+		private StringTree FormatListItems (IEnumerable<StringTree> items) => 
+			(IsLooseList (items) ?
+				items.Select (FormatLooseListItem) :
+				items.Select (FormatTightListItem))
+				.ToStringTree ();
 
 		protected override StringTree BulletList (long start, long end,
 			StringTree listItems) => 
-			StringTree.From ("<ul>", _newline, listItems, "</ul>", _newline);
+			StringTree.From ("<ul>", _newline, FormatListItems (listItems.ListValues), 
+				"</ul>", _newline);
 
 		protected override StringTree OrderedList (long start, long end, 
 			string firstNumber, StringTree listItems)
@@ -55,7 +83,7 @@
 			var num = int.Parse (firstNumber);
 			return StringTree.From (
 				num == 1 ? "<ol>" : string.Format ("<ol start=\"{0}\">", num), 
-				_newline, listItems, "</ol>", _newline);
+				_newline, FormatListItems (listItems.ListValues), "</ol>", _newline);
 		}
 
 		protected override StringTree ThematicBreak (long start, long end, 
@@ -103,12 +131,14 @@
 		protected override StringTree Emphasis (long start, long end, StringTree text) =>
 			StringTree.From ("<em>", text, "</em>").Tag (Tags.Emphasis);
 
+
 		protected override StringTree StrongEmphasis (long start, long end,
 			StringTree text)
 		{
-			if (text.TagValue == Tags.Emphasis)
+			if (text.IsList && text.ListValues.Count () == 1 && 
+				text.ListValues.First ().TagValue == Tags.Emphasis)
 			{
-				var list = text.TagTarget.ListValues;
+				var list = text.ListValues.First ().TagTarget.ListValues;
 				return Emphasis (start, end, 
 					StringTree.From ("<strong>", list.Skip (1).First (), "</strong>"));
 			}

@@ -331,8 +331,8 @@
 			select ni + gt + sp;
 
 		/*
-			## Parsing Rules
-			*/
+		## Parsing Rules
+		*/
 		private Parser<StringTree, char> Doc ()
 		{
 			Parser.Debugging = false;
@@ -578,7 +578,7 @@
 				(from ni in NonindentSpace
 				 from ch in ListBullet.ToStringParser ()
 					.Or (SP.String ("1."))
-				 from sp in SP.Char (' ')
+				 from sp in SP.WhitespaceChar
 				 select true)
 				.Trace ("IsListItem");
 
@@ -1505,7 +1505,7 @@
 				let stop = end.Or (AtEnd (""))
 				from cont in stop.Not ()
 					.Then (HtmlChunk).ZeroOrMore ()
-				from e in stop.Optional (_newline)
+				from e in stop.Or (SP.BlankLine (true))
 				select StringTree.From (s, cont.AsString (), e);
 
 			var Tag1 = SP.CaseInsensitiveString ("script")

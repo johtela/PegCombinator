@@ -4,11 +4,15 @@
 	using System.Collections.Generic;
 	using System.Linq;
 	using System.Text;
+	using ExtensionCord;
 
 	public abstract class StringTree
 	{
 		protected abstract void Output (StringBuilder sb);
-		public abstract bool HasTag (object tag);
+
+		public abstract StringTree FindTag (object tag);
+
+		public bool HasTag (object tag) => FindTag (tag) != null;
 
 		internal class Leaf : StringTree
 		{
@@ -22,7 +26,7 @@
 				sb.Append (Value);
 			}
 
-			public override bool HasTag (object tag) => false;
+			public override StringTree FindTag (object tag) => null;
 		}
 
 		internal class ListNode : StringTree
@@ -40,8 +44,8 @@
 					value.Output (sb);
 			}
 
-			public override bool HasTag (object tag) => 
-				Values.Any (v => v.HasTag (tag));
+			public override StringTree FindTag (object tag) => 
+				Values.FirstOrDefault (v => v.FindTag (tag) != null);
 		}
 
 		internal class TagNode : StringTree
@@ -58,8 +62,8 @@
 			protected override void Output (StringBuilder sb) => 
 				Target.Output (sb);
 
-			public override bool HasTag (object tag) => 
-				Tag == tag || Target.HasTag (tag);
+			public override StringTree FindTag (object tag) => 
+				Tag == tag ? this : Target.FindTag (tag);
 		}
 
 		internal class LazyNode : StringTree
@@ -84,10 +88,10 @@
 				Value.Output (sb);
 			}
 
-			public override bool HasTag (object tag)
+			public override StringTree FindTag (object tag)
 			{
 				ForceValue ();
-				return Value.HasTag (tag);
+				return Value.FindTag (tag);
 			}
 		}
 
@@ -136,15 +140,10 @@
 
 	public static class StringTreeHelpers
 	{
-		public static StringTree ToStringTree (this IEnumerable<StringTree> values)
-		{
-			switch (values.Count ())
-			{
-				case 0: return StringTree.Empty;
-				case 1: return values.First ();
-				default: return new StringTree.ListNode (values);
-			}
-		}
+		public static StringTree ToStringTree (this IEnumerable<StringTree> values) => 
+			values.None () ?
+				StringTree.Empty :
+				new StringTree.ListNode (values);
 
 		public static StringTree ToStringTree (this IEnumerable<string> values) =>
 			ToStringTree (values.Select (v => new StringTree.Leaf (v)));
