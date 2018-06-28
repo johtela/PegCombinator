@@ -12,6 +12,7 @@
 			public static readonly object Emphasis = "Emphasis";
 			public static readonly object Paragraph = "Paragraph";
 			public static readonly object BlankLines = "BlankLines";
+			public static readonly object MultiLines = "MultiLines";
 		}
 
 		public MarkdownToHtml (string newline) : base (newline) { }
@@ -34,29 +35,30 @@
 		private StringTree FormatTightParagraph (StringTree par) =>
 			StringTree.From ("<li>", ParagraphContents (par), "</li>", _newline);
 
-		private StringTree EmptyParagraph => 
+		private StringTree EmptyListItem => 
 			StringTree.From ("<li>", "</li>", _newline);
 
 		private bool IsLooseListItem (StringTree listItem, bool isLast)
 		{
-			if (IsParagraph (listItem) || IsBlankLines (listItem))
+			if (IsParagraph (listItem))
 				return false;
-			var blank = listItem.FindTag (Tags.BlankLines);
-			return blank != null &&
-				blank != listItem.ListValues.First () &&
-				(!isLast || blank != listItem.ListValues.Last ());
+			if (IsBlankLines (listItem))
+				return listItem.HasTag (Tags.MultiLines);
+			var list = listItem.ListValues.Skip (1);
+			var blank = list.FirstOrDefault (li => IsBlankLines (li));
+			return blank != null && !(isLast && blank == list.Last ());
 		}
 
 		private StringTree FormatTightListItem (StringTree listItem)
 		{
 			if (IsBlankLines (listItem))
-				return EmptyParagraph;
+				return EmptyListItem;
 			if (IsParagraph (listItem))
 				return FormatTightParagraph (listItem);
 			var list = listItem.ListValues.SkipWhile (IsBlankLines);
 			var cnt = list.Count ();
 			if (cnt == 0)
-				return EmptyParagraph;
+				return EmptyListItem;
 			var first = list.First ();
 			if (IsParagraph (first))
 			{
@@ -70,33 +72,44 @@
 				_newline);
 		}
 
-		private StringTree FormatLooseListItem (StringTree listItem) =>
-			StringTree.From ("<li>", _newline, listItem, "</li>", _newline);
+		private StringTree FormatLooseListItem (StringTree listItem) => 
+			IsBlankLines (listItem) ?
+				EmptyListItem :
+				StringTree.From ("<li>", _newline, listItem, "</li>", _newline);
 
-		private bool IsLooseList (IEnumerable<StringTree> items)
+		private StringTree FormatListItems (string startTag, string EndTag, 
+			IEnumerable<StringTree> items)
 		{
 			var last = items.Last ();
-			return items.Any (i => IsLooseListItem (i, i == last));
+			var isLoose = items.Any (i => IsLooseListItem (i, i == last));
+
+			var res = StringTree.From (startTag, _newline,
+				(isLoose ?
+					items.Select (FormatLooseListItem) :
+					items.Select (FormatTightListItem))
+				.ToStringTree (),
+				EndTag, _newline);
+			// Lift the BlankLines tag if the last line of the list is empty
+			if (last.IsList)
+			{
+				var lastBlock = last.ListValues.Last ();
+				if (IsBlankLines (lastBlock))
+					res = res.Tag (Tags.BlankLines);
+			}
+			return res;
 		}
 
-		private StringTree FormatListItems (IEnumerable<StringTree> items) => 
-			(IsLooseList (items) ?
-				items.Select (FormatLooseListItem) :
-				items.Select (FormatTightListItem))
-				.ToStringTree ();
-
 		protected override StringTree BulletList (long start, long end,
-			StringTree listItems) => 
-			StringTree.From ("<ul>", _newline, FormatListItems (listItems.ListValues), 
-				"</ul>", _newline);
+			StringTree listItems) =>
+			FormatListItems ("<ul>", "</ul>", listItems.ListValues);
 
 		protected override StringTree OrderedList (long start, long end, 
 			string firstNumber, StringTree listItems)
 		{
 			var num = int.Parse (firstNumber);
-			return StringTree.From (
-				num == 1 ? "<ol>" : string.Format ("<ol start=\"{0}\">", num), 
-				_newline, FormatListItems (listItems.ListValues), "</ol>", _newline);
+			return FormatListItems (
+				num == 1 ? "<ol>" : string.Format ("<ol start=\"{0}\">", num),
+				"</ol>", listItems.ListValues);
 		}
 
 		protected override StringTree ThematicBreak (long start, long end, 
@@ -129,8 +142,13 @@
 		protected override StringTree Paragraph (long start, long end, StringTree text) =>
 			StringTree.From ("<p>", text, "</p>", _newline).Tag (Tags.Paragraph);
 
-		protected override StringTree BlankLines (long start, long end, StringTree lines) => 
-			StringTree.Empty.Tag (Tags.BlankLines);
+		protected override StringTree BlankLines (long start, long end, StringTree lines)
+		{
+			var res = StringTree.Empty;
+			if (lines.ListValues.Count () > 1)
+				res = res.Tag (Tags.MultiLines);
+			return res.Tag (Tags.BlankLines);
+		}
 
 		protected override StringTree SoftLineBreak (long start, long end, StringTree text) =>
 			_newline;

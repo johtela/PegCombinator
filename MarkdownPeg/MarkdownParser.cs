@@ -482,14 +482,23 @@
 				}
 			}
 
+			int IndentSum (IEnumerable<char> str) =>
+				str.Aggregate (0, (i, c) => i + IndentLength (c));
+
 			Parser<int, char> IndentAmount (int prefixLen) =>
 				(SP.BlankLine ().And ().Select (_ => prefixLen + 1)
 				.Or (from sp in SP.SpaceOrTab
 					 from sps in SP.SpaceOrTab.ZeroOrMore ().And ()
 					 let fst = sp == ' ' ? 1 : 4 - (prefixLen % 4)
-					 let cnt = sps.Aggregate (0, (i, c) => i + IndentLength (c))
+					 let cnt = IndentSum (sps)
 					 select prefixLen + (cnt < 4 ? cnt + fst : fst)))
 				.Trace ("IndentAmount");
+
+			Parser<int, char> MarkerIndent (int maxIndent) =>
+				from sp in OptionalSpace
+				let res = IndentSum (sp)
+				where res < maxIndent
+				select res;
 
 			var FirstListMarker =
 				(from ni in NonindentSpace
@@ -520,10 +529,10 @@
 				.Trace ("FirstListItem");
 
 			Parser<ListMarkerInfo, char> NextListMarker (ListMarkerInfo lmi) =>
-				(from ni in NonindentSpace
+				(from indlen in MarkerIndent (lmi.Indent)
 				 from notTB in TB ('*').Or (TB ('-')).Not ()
 				 from mark in lmi.MarkerParser
-				 let prefixLen = ni.Length + mark.Length
+				 let prefixLen = indlen + mark.Length
 				 from ind in IndentAmount (prefixLen)
 				 select lmi.ChangeIndent (ind))
 				.Trace ("NextListMarker");
@@ -598,14 +607,23 @@
 				 select true)
 				.Trace ("IsFencedCodeBlock");
 
-			var IsListItem =
-				(from ni in NonindentSpace
-				 from ch in ListBullet.Select (_ => true)
+			var NewList =
+				from ni in NonindentSpace
+				from ch in ListBullet.Select (_ => "")
+					.Or (SP.String ("1."))
+				 from nb in SP.BlankLine ().Not ()
+				 select true;
+
+			var NewListItem =
+				from sp in OptionalSpace
+				from x in Parser.CheckState<ParseState, char> (st =>
+				   st.InsideList ())
+				from ch in ListBullet.Select (_ => true)
 					.Or (OrderedListMarker.Select (_ => true))
-				 from x in (Parser.CheckState<ParseState, char> (st =>
-							st.InsideList ())
-						.Select (_ => string.Empty))
-					.Or (SP.BlankLine ().Not ())
+				select true;
+
+			var IsListItem =
+				(from lst in NewList.Or (NewListItem)
 				 from sp in SP.SpaceOrTab
 				   .Or (SP.NewLine.Then (NotAtEnd))
 				 select true)
