@@ -272,6 +272,9 @@
 					.Trace ("ContinueBlock" + (lazyContinuation ? " (lazy)" : ""));
 			}
 
+			public bool InsideList () =>
+				_blockStack.Any (b => b.Type == ContainerBlockType.ListItem);
+
 			public void StartImage () =>
 				_nestedImages++;
 
@@ -424,6 +427,15 @@
 				 from cb in ContinueBlock (lazy)
 				 select nl)
 				.Trace ("NewLineInBlock" + (lazy ? " (lazy)" : ""));
+
+			Parser<StringTree, char> Blanks (int minLines) =>
+				(from startPos in Position
+				 from blanks in SP.BlankLine ()
+					.SeparatedBy1 (ContinueBlock (false))
+				 where blanks.Count >= minLines
+				 from endPos in Position
+				 select BlankLines (startPos, endPos, blanks.ToStringTree ()))
+				.Trace ("BlankLines");
 			/*
 			#### Block Quotes
 			*/
@@ -456,7 +468,7 @@
 				 select Tuple.Create (
 					 from n in OrderedListNumber
 					 from d in SP.Char (dot)
-					 select n.AsString () + d,
+					 select n.AddToBack (d).AsString (),
 					 num.AsString ()))
 				.Trace ("OrderedListMarker");
 
@@ -479,17 +491,22 @@
 					 mark.Item2))
 				.Trace ("FirstListMarker");
 
+			Parser<StringTree, char> ListItemBlocks (ListMarkerInfo lmi) =>
+				Blanks(2).Or (
+					from st in Parser.ModifyState<ParseState, char> (s =>
+						 s.BeginBlock (ContainerBlockType.ListItem, lmi.Indent))
+					from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
+						.CleanupState<List<StringTree>, ParseState, char> (s =>
+							s.EndBlock ())
+					select blocks.ToStringTree ())
+				.Trace ("ListItemBlocks");
+
 			var FirstListItem =
 				(from startPos in Position
 				 from lmi in FirstListMarker
-				 from st in Parser.ModifyState<ParseState, char> (s =>
-					 s.BeginBlock (ContainerBlockType.ListItem, lmi.Indent))
-				 from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
-					 .CleanupState<List<StringTree>, ParseState, char> (s =>
-						 s.EndBlock ())
+				 from blocks in ListItemBlocks (lmi)
 				 from endPos in Position
-				 select Tuple.Create (
-					 ListItem (startPos, endPos, blocks.ToStringTree ()), lmi))
+				 select Tuple.Create (ListItem (startPos, endPos, blocks), lmi))
 				.Trace ("FirstListItem");
 
 			Parser<ListMarkerInfo, char> NextListMarker (ListMarkerInfo lmi) =>
@@ -504,13 +521,9 @@
 				(from cont in ContinueBlock (false)
 				 from startPos in Position
 				 from nlmi in NextListMarker (lmi)
-				 from st in Parser.ModifyState<ParseState, char> (s =>
-					 s.BeginBlock (ContainerBlockType.ListItem, nlmi.Indent))
-				 from blocks in AnyBlock.Target.SeparatedBy (st.ContinueBlock (false))
-					 .CleanupState<List<StringTree>, ParseState, char> (s =>
-						 s.EndBlock ())
+				 from blocks in ListItemBlocks (nlmi)
 				 from endPos in Position
-				 select ListItem (startPos, endPos, blocks.ToStringTree ()))
+				 select ListItem (startPos, endPos, blocks))
 				.Trace ("NextListItem");
 			/*
 			#### Lists
@@ -576,9 +589,14 @@
 
 			var IsListItem =
 				(from ni in NonindentSpace
-				 from ch in ListBullet.ToStringParser ()
-					.Or (SP.String ("1."))
-				 from sp in SP.WhitespaceChar
+				 from ch in ListBullet.Select (_ => true)
+					.Or (OrderedListMarker.Select (_ => true))
+				 from x in (Parser.CheckState<ParseState, char> (st =>
+							st.InsideList ())
+						.Select (_ => string.Empty))
+					.Or (SP.BlankLine ().Not ())
+				 from sp in SP.Char (' ')
+				   .Or (SP.NewLine.Then (NotAtEnd))
 				 select true)
 				.Trace ("IsListItem");
 
@@ -1595,18 +1613,10 @@
 				 select Paragraph (startPos, endPos, inlines))
 				.Trace ("Para");
 
-			var Blanks =
-				(from startPos in Position
-				 from blanks in SP.BlankLine ()
-					.SeparatedBy1 (ContinueBlock (false))
-				 from endPos in Position
-				 select BlankLines (startPos, endPos, blanks.AsString ()))
-				.Trace ("BlankLines");
-
 			AnyBlock.Target =
 				(from notend in NotAtEnd.And ()
 				 from startPos in Position
-				 from block in Blanks
+				 from block in Blanks (0)
 					 .Or (List)
 					 .Or (BlockQuoteStart)
 					 .Or (VerbatimBlock)

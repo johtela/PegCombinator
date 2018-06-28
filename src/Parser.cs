@@ -388,6 +388,14 @@
 			};
 		}
 
+		public static Parser<T, S> CheckState<T, S> (Func<T, bool> predicate)
+		{
+			return input =>
+				predicate ((T)input.State) ?
+					ParseResult<T>.Succeeded (input.Position, (T)input.State) :
+					ParseResult<T>.Failed (input.Position, "State predicate failed");
+		}
+
 		public static Parser<T, S> CleanupState<T, U, S> (this Parser<T, S> parser, Action<U> cleanup)
 		{
 			return input =>

@@ -25,36 +25,49 @@
 		private bool IsParagraph (StringTree st) =>
 			st.TagValue == Tags.Paragraph;
 
+		private bool IsBlankLines (StringTree st) =>
+			st.TagValue == Tags.BlankLines;
+
 		private StringTree ParagraphContents (StringTree st) =>
 			st.TagTarget.ListValues.Skip (1).First ();
 
+		private StringTree FormatTightParagraph (StringTree par) =>
+			StringTree.From ("<li>", ParagraphContents (par), "</li>", _newline);
+
+		private StringTree EmptyParagraph => 
+			StringTree.From ("<li>", "</li>", _newline);
+
 		private bool IsLooseListItem (StringTree listItem, bool isLast)
 		{
-			if (IsParagraph (listItem))
+			if (IsParagraph (listItem) || IsBlankLines (listItem))
 				return false;
 			var blank = listItem.FindTag (Tags.BlankLines);
-			return blank != null && 
+			return blank != null &&
+				blank != listItem.ListValues.First () &&
 				(!isLast || blank != listItem.ListValues.Last ());
 		}
 
 		private StringTree FormatTightListItem (StringTree listItem)
 		{
-			StringTree tightPar (StringTree par) =>
-				StringTree.From ("<li>", ParagraphContents (par), "</li>", _newline);
-
+			if (IsBlankLines (listItem))
+				return EmptyParagraph;
 			if (IsParagraph (listItem))
-				return tightPar (listItem);
-			var list = listItem.ListValues;
+				return FormatTightParagraph (listItem);
+			var list = listItem.ListValues.SkipWhile (IsBlankLines);
 			var cnt = list.Count ();
+			if (cnt == 0)
+				return EmptyParagraph;
 			var first = list.First ();
 			if (IsParagraph (first))
 			{
-				if (cnt == 1 || (cnt == 2 && list.Skip (1).First ().HasTag (Tags.BlankLines)))
-					return tightPar (first);
+				if (cnt == 1 || (cnt == 2 && IsBlankLines (list.Last ())))
+					return FormatTightParagraph (first);
 				return StringTree.From ("<li>", ParagraphContents (first), _newline,
 					list.Skip (1).ToStringTree (), "</li>", _newline);
 			}
-			return StringTree.From ("<li>", _newline, listItem, "</li>", _newline);
+			var items = list.Select (i => IsParagraph (i) ? ParagraphContents (i) : i);
+			return StringTree.From ("<li>", _newline, items.ToStringTree (), "</li>", 
+				_newline);
 		}
 
 		private StringTree FormatLooseListItem (StringTree listItem) =>
