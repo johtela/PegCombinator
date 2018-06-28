@@ -182,8 +182,12 @@
 			from ws in AsciiWhitespaceChar.OneOrMore ()
 			select result ?? ws.AsString ();
 
+
+		public static readonly Parser<char, char> SpaceOrTab = 
+			OneOf (' ', '\t');
+
 		public static readonly Parser<string, char> SpacesOrTabs =
-			from s in OneOf (' ', '\t').OneOrMore ()
+			from s in SpaceOrTab.OneOrMore ()
 			select s.AsString ();
 
 		public static readonly Parser<string, char> NewLine =

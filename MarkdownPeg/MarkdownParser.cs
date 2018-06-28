@@ -472,12 +472,23 @@
 					 num.AsString ()))
 				.Trace ("OrderedListMarker");
 
-			var IndentAmount =
-				(SP.BlankLine ().And ().Select (_ => 1)
-				.Or (from sp in SP.Char (' ')
-					 from sps in SP.Char (' ').ZeroOrMore ().And ()
-					 let cnt = sps.Count
-					 select cnt < 4 ? cnt + 1 : 1))
+			int IndentLength (char ch)
+			{
+				switch (ch)
+				{
+					case ' ': return 1;
+					case '\t': return 4;
+					default: return 0;
+				}
+			}
+
+			Parser<int, char> IndentAmount (int prefixLen) =>
+				(SP.BlankLine ().And ().Select (_ => prefixLen + 1)
+				.Or (from sp in SP.SpaceOrTab
+					 from sps in SP.SpaceOrTab.ZeroOrMore ().And ()
+					 let fst = sp == ' ' ? 1 : 4 - (prefixLen % 4)
+					 let cnt = sps.Aggregate (0, (i, c) => i + IndentLength (c))
+					 select prefixLen + (cnt < 4 ? cnt + fst : fst)))
 				.Trace ("IndentAmount");
 
 			var FirstListMarker =
@@ -485,10 +496,9 @@
 				 from notTB in TB ('*').Or (TB ('-')).Not ()
 				 from mark in BulletListMarker
 					 .Or (OrderedListMarker)
-				 from ind in IndentAmount
-				 select new ListMarkerInfo (mark.Item1,
-					 ni.Length + mark.Item2.Length + 1 + ind,
-					 mark.Item2))
+				 let prefixLen = ni.Length + mark.Item2.Length + 1
+				 from ind in IndentAmount (prefixLen)
+				 select new ListMarkerInfo (mark.Item1, ind, mark.Item2))
 				.Trace ("FirstListMarker");
 
 			Parser<StringTree, char> ListItemBlocks (ListMarkerInfo lmi) =>
@@ -513,8 +523,9 @@
 				(from ni in NonindentSpace
 				 from notTB in TB ('*').Or (TB ('-')).Not ()
 				 from mark in lmi.MarkerParser
-				 from ind in IndentAmount
-				 select lmi.ChangeIndent (ni.Length + mark.Length + ind))
+				 let prefixLen = ni.Length + mark.Length
+				 from ind in IndentAmount (prefixLen)
+				 select lmi.ChangeIndent (ind))
 				.Trace ("NextListMarker");
 
 			Parser<StringTree, char> NextListItem (ListMarkerInfo lmi) =>
@@ -595,7 +606,7 @@
 							st.InsideList ())
 						.Select (_ => string.Empty))
 					.Or (SP.BlankLine ().Not ())
-				 from sp in SP.Char (' ')
+				 from sp in SP.SpaceOrTab
 				   .Or (SP.NewLine.Then (NotAtEnd))
 				 select true)
 				.Trace ("IsListItem");

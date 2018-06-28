@@ -53,6 +53,7 @@
     <Compile Include="BlockQuotes.cs" />
     <Compile Include="CodeSpans.cs" />
     <Compile Include="EntityAndNumericCharReferences.cs" />
+    <Compile Include="Extras.cs" />
     <Compile Include="FencedCodeBlocks.cs" />
     <Compile Include="HardLineBreaks.cs" />
     <Compile Include="HtmlBlocks.cs" />

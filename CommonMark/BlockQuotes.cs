@@ -47,11 +47,6 @@
 			"> foo\n---", 
 			"<blockquote>\n<p>foo</p>\n</blockquote>\n<hr />");
 
-		[TestMethod]
-		public void Example197b () => TestParse (
-			"> foo\n> ---",
-			"<blockquote>\n<h2>foo</h2>\n</blockquote>\n");
-
 		/* [Example 198](http://spec.commonmark.org/0.28/#example-198) */
 		[TestMethod]
 		public void Example198 () => TestParse (
@@ -69,11 +64,6 @@
 		public void Example200 () => TestParse (
 			"> ```\nfoo\n```", 
 			"<blockquote>\n<pre><code></code></pre>\n</blockquote>\n<p>foo</p>\n<pre><code></code></pre>");
-
-		[TestMethod]
-		public void Example200b () => TestParse (
-			"> ```\n> foo\n> ```",
-			"<blockquote>\n<pre><code>foo\n</code></pre>\n</blockquote>\n");
 
 		/* [Example 201](http://spec.commonmark.org/0.28/#example-201) */
 		[TestMethod]
