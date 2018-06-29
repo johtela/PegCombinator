@@ -338,7 +338,6 @@
 		*/
 		private Parser<StringTree, char> Doc ()
 		{
-			Parser.Debugging = false;
 			/*
 			### Special and Normal Characters
 			*/
