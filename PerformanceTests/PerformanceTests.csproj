@@ -4,15 +4,16 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{4CC0207D-7A28-4D70-AFCE-922F0CB702A7}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>PegCombinator</RootNamespace>
-    <AssemblyName>PegCombinator</AssemblyName>
+    <ProjectGuid>{511CED75-A00B-49E0-8944-EF508FDF129E}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>PerformanceTests</RootNamespace>
+    <AssemblyName>PerformanceTests</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -20,9 +21,9 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <LangVersion>default</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -31,26 +32,34 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="ExtensionCord, Version=1.0.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\ExtensionCord.1.0.2\lib\net461\ExtensionCord.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="src\Ref.cs" />
-    <Compile Include="src\CollectionParsers.cs" />
-    <Compile Include="src\ParseError.cs" />
-    <Compile Include="src\Parser.cs" />
-    <Compile Include="src\ParseResult.cs" />
-    <Compile Include="src\IParserInput.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="src\StringParser.cs" />
-    <Compile Include="src\StringTree.cs" />
+    <Compile Include="Program.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
+    <None Include="App.config" />
+    <None Include="syntax.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MarkdownPeg\MarkdownPeg.csproj">
+      <Project>{789043ec-411c-49bd-ab1b-9d41b4628f26}</Project>
+      <Name>MarkdownPeg</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\PegCombinator.csproj">
+      <Project>{4cc0207d-7a28-4d70-afce-922f0cb702a7}</Project>
+      <Name>PegCombinator</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Properties\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

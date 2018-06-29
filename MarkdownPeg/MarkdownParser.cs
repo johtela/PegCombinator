@@ -339,7 +339,6 @@
 		private Parser<StringTree, char> Doc ()
 		{
 			Parser.Debugging = false;
-			Parser.UseMemoization = false;
 			/*
 			### Special and Normal Characters
 			*/
@@ -872,11 +871,11 @@
 					.Trace ("UnderscoreEmph");
 			}
 
-			var Emphasized =
-				AsteriskEmph (2, StrongEmphasis)
-				.Or (UnderscoreEmph (2, StrongEmphasis))
-				.Or (AsteriskEmph (1, Emphasis))
-				.Or (UnderscoreEmph (1, Emphasis))
+			var Emphasized = Parser.Any (
+				AsteriskEmph (2, StrongEmphasis),
+				UnderscoreEmph (2, StrongEmphasis),
+				AsteriskEmph (1, Emphasis),
+				UnderscoreEmph (1, Emphasis))
 				.Trace ("Emphasized");
 			/*
 			#### Links
@@ -902,9 +901,10 @@
 				.Trace ("LinkDestAngle");
 
 			var LinkDestPart =
-				(from chs in SP.AsciiWhitespaceChar
-					.Or (SP.AsciiControl)
-					.Or (SP.OneOf ('(', ')'))
+				(from chs in Parser.Any ( 
+					SP.AsciiWhitespaceChar,
+					SP.AsciiControl,
+					SP.OneOf ('(', ')'))
 					.Not ()
 					.Then (EscapedChar.Or (SP.AnyChar)).ZeroOrMore ()
 				 select chs.AsString ())
@@ -936,19 +936,21 @@
 			Parser<Tuple<string, StringTree>, char> LTitle (char open, char close) =>
 				(from oq in SP.Char (open)
 				 from chs in BlankTitleLine.Not ().Then (
-					 EscapedChar.ToStringParser ()
-					 .Or (EntityAsString)
-					 .Or (NumericCharAsString)
-					 .Or (SP.NoneOf (close).ToStringParser ()))
+					 Parser.Any (
+						EscapedChar.ToStringParser (),
+						EntityAsString,
+						NumericCharAsString,
+						SP.NoneOf (close).ToStringParser ()))
 					 .ZeroOrMore ()
 				 from cq in SP.Char (close)
 				 let title = chs.AsString ()
 				 select Tuple.Create (title, StringTree.From (open, title, close)))
 				.Trace (string.Format ("LinkTitle {0}...{1}", open, close));
 
-			var LinkTitle = LTitle ('\'', '\'')
-				.Or (LTitle ('"', '"'))
-				.Or (LTitle ('(', ')'))
+			var LinkTitle = Parser.Any (
+				LTitle ('\'', '\''),
+				LTitle ('"', '"'),
+				LTitle ('(', ')'))
 				.Trace ("LinkTitle");
 
 			Parser<StringTree, char> InlineLink (long startPos, StringTree text) =>
@@ -982,7 +984,7 @@
 					.Then (
 						EscapedCharWithBackslash
 						.Or (SP.NonWhitespaceChar.ToStringParser ())))
-						.Or (SP.Whitespace (" "))
+					.Or (SP.Whitespace (" "))
 					.OneOrMore ()
 				 where !chs.All (string.IsNullOrWhiteSpace)
 				 from cp in SP.Char (']')
@@ -1039,9 +1041,10 @@
 			var AnyLink =
 				(from startPos in Position
 				 from text in LinkText
-				 from res in InlineLink (startPos, text)
-					 .Or (FullReferenceLink (startPos, text))
-					 .Or (CollapsedOrShortcutReferenceLink (startPos, text))
+				 from res in Parser.Any (
+					 InlineLink (startPos, text),
+					 FullReferenceLink (startPos, text),
+					 CollapsedOrShortcutReferenceLink (startPos, text))
 				 select res)
 				.Trace ("AnyLink");
 
@@ -1129,9 +1132,10 @@
 				 from _ in Parser.ModifyState<ParseState, char> (st => st.StartImage ())
 				 from alt in LinkText
 					.CleanupState<StringTree, ParseState, char> (st => st.EndImage ())
-				 from img in InlineImage (startPos, alt)
-					 .Or (FullReferenceImage (startPos, alt))
-					 .Or (CollapsedOrShortcutReferenceImage (startPos, alt))
+				 from img in Parser.Any (
+					 InlineImage (startPos, alt),
+					 FullReferenceImage (startPos, alt),
+					 CollapsedOrShortcutReferenceImage (startPos, alt))
 				 select img)
 				.Trace ("AnyImage");
 			/*
@@ -1139,9 +1143,10 @@
 			*/
 			var Scheme =
 				(from fst in SP.AsciiLetter
-				 from rest in SP.AsciiLetter
-					 .Or (SP.Number)
-					 .Or (SP.OneOf ('+', '.', '-'))
+				 from rest in Parser.Any ( 
+					 SP.AsciiLetter,
+					 SP.Number,
+					 SP.OneOf ('+', '.', '-'))
 					 .OneOrMore ()
 				 from col in SP.Char (':')
 				 select rest.AddToFront (fst).AddToBack (col).AsString ())
@@ -1149,9 +1154,10 @@
 
 			var UriAutolink =
 				(from sch in Scheme
-				 from adr in SP.AsciiWhitespaceChar
-					 .Or (SP.AsciiControl)
-					 .Or (SP.OneOf ('<', '>'))
+				 from adr in Parser.Any (
+					 SP.AsciiWhitespaceChar,
+					 SP.AsciiControl,
+					 SP.OneOf ('<', '>'))
 					 .Not ()
 					 .Then (SP.AnyChar)
 					 .ZeroOrMore ()
@@ -1215,10 +1221,10 @@
 			Parser<string, char> CodeContent (Parser<string, char> close) =>
 				(from ws in SP.OptionalWhitespace ("")
 				 from code in close.Not ()
-					 .Then (
-						 SP.AsciiWhitespace (" ")
-						 .Or (BacktickString)
-						 .Or (SP.AnyChar.ToStringParser ()))
+					 .Then (Parser.Any (
+						 SP.AsciiWhitespace (" "),
+						 BacktickString,
+						 SP.AnyChar.ToStringParser ()))
 					 .ZeroOrMore ()
 				 from cl in close
 				 select code.AsString ().TrimEnd ())
@@ -1281,9 +1287,10 @@
 				 from ws2 in allowNewline ?
 					SP.OptionalWhitespace (null) :
 					OptionalSpace
-				 from val in UnquotedAttributeValue (allowNewline)
-					 .Or (QuotedAttributeValue ('\'', allowNewline))
-					 .Or (QuotedAttributeValue ('"', allowNewline))
+				 from val in Parser.Any (
+					 UnquotedAttributeValue (allowNewline),
+					 QuotedAttributeValue ('\'', allowNewline),
+					 QuotedAttributeValue ('"', allowNewline))
 				 select ws1 + eq + ws2 + val)
 				.Trace ("AttributeValue");
 
@@ -1363,12 +1370,13 @@
 			var AnyTag =
 				(from startPos in Position
 				 from lt in SP.Char ('<')
-				 from tag in OpenTag (true)
-					 .Or (ClosingTag)
-					 .Or (HtmlComment)
-					 .Or (ProcessingInstruction)
-					 .Or (CDataSection)
-					 .Or (Declaration)
+				 from tag in Parser.Any ( 
+					 OpenTag (true),
+					 ClosingTag,
+					 HtmlComment,
+					 ProcessingInstruction,
+					 CDataSection,
+					 Declaration)
 				 from endPos in EndPosInsideBlock
 				 select HtmlTag (startPos, endPos, tag.Item1, tag.Item2))
 				.Trace ("AnyTag");
@@ -1376,20 +1384,20 @@
 			/*
 			#### Main Inline Selector
 			*/
-			Inline.Target =
-				LineBreak
-				.Or (AnyLink)
-				.Or (AnyImage)
-				.Or (Autolink)
-				.Or (AnyTag)
-				.Or (Emphasized)
-				.Or (Code)
-				.Or (SpaceBetweenWords)
-				.Or (BackslashEscape)
-				.Or (Entity)
-				.Or (NumericChar)
-				.Or (Punct)
-				.Or (UnformattedText)
+			Inline.Target = Parser.Any (
+				LineBreak,
+				AnyLink,
+				AnyImage, 
+				Autolink,
+				AnyTag,
+				Emphasized,
+				Code,
+				SpaceBetweenWords,
+				BackslashEscape,
+				Entity,
+				NumericChar,
+				Punct,
+				UnformattedText)
 				.Trace ("Inline");
 
 			var Inlines =
@@ -1487,9 +1495,10 @@
 			*/
 			var InfoString =
 				(from ws in OptionalSpace
-				 from ch in EntityAsString
-					 .Or (EscapedChar.ToStringParser ())
-					 .Or (SP.NoneOf ('`', '\n', '\r').ToStringParser ())
+				 from ch in Parser.Any (
+					 EntityAsString,
+					 EscapedChar.ToStringParser (),
+					 SP.NoneOf ('`', '\n', '\r').ToStringParser ())
 					.ZeroOrMore ()
 				 from nl in SP.NewLine
 				 let info = ch.AsString ().TrimEnd ()
@@ -1555,9 +1564,10 @@
 				from e in stop.Or (SP.BlankLine (true))
 				select StringTree.From (s, cont.AsString (), e);
 
-			var Tag1 = SP.CaseInsensitiveString ("script")
-				.Or (SP.CaseInsensitiveString ("pre"))
-				.Or (SP.CaseInsensitiveString ("style"));
+			var Tag1 = Parser.Any (
+				SP.CaseInsensitiveString ("script"),
+				SP.CaseInsensitiveString ("pre"),
+				SP.CaseInsensitiveString ("style"));
 			var Start1 = StartTag (Tag1);
 			var HtmlBlock1 = HtmlBlock (Start1, EndTag (Tag1))
 				.Trace ("HtmlBlock1 (<script>, <pre>, <style>)");
@@ -1607,12 +1617,13 @@
 			IsHtmlBlock.Target =
 				(from ni in NonindentSpace
 				 from lt in SP.Char ('<')
-				 from html in Start1
-					 .Or (Start2)
-					 .Or (Start3)
-					 .Or (Start4)
-					 .Or (Start5)
-					 .Or (Start6)
+				 from html in Parser.Any ( 
+					 Start1,
+					 Start2,
+					 Start3,
+					 Start4,
+					 Start5,
+					 Start6)
 				 select true)
 				.Trace ("IsHtmlBlock");
 
@@ -1620,13 +1631,14 @@
 				(from startPos in Position
 				 from ni in NonindentSpace
 				 from lt in SP.Char ('<')
-				 from html in HtmlBlock1
-					 .Or (HtmlBlock2)
-					 .Or (HtmlBlock3)
-					 .Or (HtmlBlock4)
-					 .Or (HtmlBlock5)
-					 .Or (HtmlBlock6)
-					 .Or (HtmlBlock7)
+				 from html in Parser.Any (
+					 HtmlBlock1,
+					 HtmlBlock2,
+					 HtmlBlock3,
+					 HtmlBlock4,
+					 HtmlBlock5,
+					 HtmlBlock6,
+					 HtmlBlock7)
 				 from endPos in EndPosInsideBlock
 				 select this.HtmlBlock (startPos, endPos, ni + html))
 				.Trace ("AnyHtmlBlock");
@@ -1645,17 +1657,18 @@
 			AnyBlock.Target =
 				(from notend in NotAtEnd.And ()
 				 from startPos in Position
-				 from block in Blanks (0)
-					 .Or (List)
-					 .Or (BlockQuoteStart)
-					 .Or (VerbatimBlock)
-					 .Or (FencedCodeBlock)
-					 .Or (AtxHeading)
-					 .Or (ThemaBreak)
-					 .Or (AnyHtmlBlock)
-					 .Or (LinkReferenceDefinition)
-					 .Or (SetextHeading)
-					 .Or (Para)
+				 from block in Parser.Any (
+					 Blanks (0),
+					 List,
+					 BlockQuoteStart,
+					 VerbatimBlock,
+					 FencedCodeBlock,
+					 AtxHeading,
+					 ThemaBreak,
+					 AnyHtmlBlock,
+					 LinkReferenceDefinition,
+					 SetextHeading,
+					 Para)
 				 from endPos in Position
 				 select block)
 				.Trace ("AnyBlock");
