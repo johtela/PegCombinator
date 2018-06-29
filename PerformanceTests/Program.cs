@@ -16,10 +16,9 @@ namespace PerformanceTests
 		public static Stopwatch Timing;
 		public static MarkdownPipeline Pipeline;
 
-
 		static Program ()
 		{
-			PegCombinator.Parser.Debugging = true;
+			PegCombinator.Parser.Debugging = false;
 			Parser = new MarkdownToHtml ("\n");
 			Timing = new Stopwatch ();
 			Pipeline = new MarkdownPipelineBuilder ().Build ();
@@ -28,12 +27,18 @@ namespace PerformanceTests
 		static void Main (string[] args)
 		{
 			Console.WriteLine ("Reading file...");
-			var file = File.ReadAllText (@"..\..\syntax2.md");
-			var parsed1 = Parse (file, Parser.Run, "MarkdownPeg");
-			var parsed2 = Parse (file, s => Markdown.ToHtml (s, Pipeline), "Markdig");
-			Console.WriteLine ("Writing output...");
-			File.WriteAllText (@"..\..\syntax1.html", parsed1);
-			File.WriteAllText (@"..\..\syntax2.html", parsed2);
+			var file1 = File.ReadAllText (@"..\..\syntax.md");
+			var file2 = File.ReadAllText (@"..\..\syntax2.md");
+			for (int i = 0; i < 100; i++)
+			{
+				Parse (file1, Parser.Run, "MarkdownPeg");
+				Parse (file2, Parser.Run, "MarkdownPeg");
+				//Parse (file1, s => Markdown.ToHtml (s, Pipeline), "Markdig");
+				//Parse (file2, s => Markdown.ToHtml (s, Pipeline), "Markdig");
+			}
+			//Console.WriteLine ("Writing output...");
+			//File.WriteAllText (@"..\..\syntax1.html", parsed1);
+			//File.WriteAllText (@"..\..\syntax2.html", parsed2);
 		}
 
 		private static string Parse (string file, Func<string, string> parser, string name)

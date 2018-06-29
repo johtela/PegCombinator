@@ -34,5 +34,11 @@
 		public void Example900 () => TestParse (
 			"[foo]:\n  /url\n  \"title\"\nTest\n====\n\n[foo]",
 			"<h1>Test</h1>\n<p><a href=\"/url\" title=\"title\">foo</a></p>");
+
+		[TestMethod]
+		public void Example901 () => TestParse (
+			"*   [Miscellaneous](#misc)\n    *   [Backslash Escapes](#backslash)\n    *   [Automatic Links](#autolink)\n\n",
+			"<ul>\n<li><a href=\"#misc\">Miscellaneous</a>\n<ul>\n<li><a href=\"#backslash\">Backslash Escapes</a></li>\n<li><a href=\"#autolink\">Automatic Links</a></li>\n</ul>\n</li>\n</ul>");
+
 	}
 }

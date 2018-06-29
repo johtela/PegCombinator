@@ -31,11 +31,11 @@
 
 		internal class ListNode : StringTree
 		{
-			public readonly IEnumerable<StringTree> Values;
+			public readonly List<StringTree> Values;
 
-			public ListNode (IEnumerable<StringTree> values)
+			public ListNode (List<StringTree> values)
 			{
-				Values = values;
+				Values = values.ToList ();
 			}
 
 			protected override void Output (StringBuilder sb)
@@ -101,7 +101,7 @@
 
 		public bool IsList => this is ListNode;
 
-		public IEnumerable<StringTree> ListValues =>
+		public List<StringTree> ListValues =>
 			(this as ListNode)?.Values;
 
 		public bool IsTag => this is TagNode;
@@ -140,10 +140,13 @@
 
 	public static class StringTreeHelpers
 	{
-		public static StringTree ToStringTree (this IEnumerable<StringTree> values) => 
-			values.None () ?
+		public static StringTree ToStringTree (this IEnumerable<StringTree> values)
+		{
+			var list = values.ToList ();
+			return list.Count == 0 ?
 				StringTree.Empty :
-				new StringTree.ListNode (values);
+				new StringTree.ListNode (list);
+		}
 
 		public static StringTree ToStringTree (this IEnumerable<string> values) =>
 			ToStringTree (values.Select (v => new StringTree.Leaf (v)));

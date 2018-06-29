@@ -62,7 +62,9 @@
 			var first = list.First ();
 			if (IsParagraph (first))
 			{
-				if (cnt == 1 || (cnt == 2 && IsBlankLines (list.Last ())))
+				var last = list.Last ();
+				if (cnt == 1 || 
+					(cnt == 2 && IsBlankLines (last) && !last.TagTarget.IsList))
 					return FormatTightParagraph (first);
 				return StringTree.From ("<li>", ParagraphContents (first), _newline,
 					list.Skip (1).ToStringTree (), "</li>", _newline);
@@ -78,7 +80,7 @@
 				StringTree.From ("<li>", _newline, listItem, "</li>", _newline);
 
 		private StringTree FormatListItems (string startTag, string EndTag, 
-			IEnumerable<StringTree> items)
+			List<StringTree> items)
 		{
 			var last = items.Last ();
 			var isLoose = items.Any (i => IsLooseListItem (i, i == last));

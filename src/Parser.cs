@@ -292,8 +292,6 @@
 
 		public static Parser<T, S> Any<T, S> (IEnumerable<Parser<T, S>> options)
 		{
-			if (options.None ())
-				throw new ArgumentException ("Must provide at least one option.", "options");
 			return input =>
 			{
 				ParseResult<T> res = null;
