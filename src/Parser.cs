@@ -285,10 +285,7 @@
         }
 
 		public static Parser<T, S> Choose<T, S> (Func<S, Parser<T, S>> selector) =>
-			from item in Peek<S> ()
-			let parser = selector (item)
-			from res in parser
-			select res;
+			Peek<S> ().Bind (selector);
 
 		public static Parser<T, S> Any<T, S> (IEnumerable<Parser<T, S>> options)
 		{

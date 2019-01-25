@@ -31,10 +31,10 @@ namespace PerformanceTests
 			var file2 = File.ReadAllText (@"..\..\syntax2.md");
 			for (int i = 0; i < 100; i++)
 			{
-				Parse (file1, Parser.Run, "MarkdownPeg");
-				Parse (file2, Parser.Run, "MarkdownPeg");
-				//Parse (file1, s => Markdown.ToHtml (s, Pipeline), "Markdig");
-				//Parse (file2, s => Markdown.ToHtml (s, Pipeline), "Markdig");
+				//Parse (file1, Parser.Run, "MarkdownPeg");
+				//Parse (file2, Parser.Run, "MarkdownPeg");
+				Parse (file1, s => Markdown.ToHtml (s, Pipeline), "Markdig");
+				Parse (file2, s => Markdown.ToHtml (s, Pipeline), "Markdig");
 			}
 			//Console.WriteLine ("Writing output...");
 			//File.WriteAllText (@"..\..\syntax1.html", parsed1);
